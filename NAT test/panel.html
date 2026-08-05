@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>NAT Performance Test - Client Control Panel</title>
+<style>
+  :root {
+    --bg:#0f1420; --card:#1a2233; --border:#2a3450; --text:#e6ebf5; --muted:#8a96b3;
+    --http:#4f8cff; --tcp:#37c977; --udp:#ffb648; --danger:#ff5d5d; --accent:#6c7bff;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:20px 28px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:18px; margin:0; font-weight:600; }
+  .wrap { padding:24px 28px; max-width:960px; margin:0 auto; display:grid; grid-template-columns: 360px 1fr; gap:24px; }
+  @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .card h2 { font-size:14px; margin:0 0 14px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+  label { display:block; font-size:13px; margin:12px 0 4px; color:var(--muted); }
+  input[type=text], input[type=number] {
+    width:100%; padding:8px 10px; background:#0f1420; border:1px solid var(--border); border-radius:8px;
+    color:var(--text); font-size:14px;
+  }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .proto-block { border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-top:12px; }
+  .proto-block .title { display:flex; align-items:center; gap:8px; font-weight:600; font-size:13px; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot.http{background:var(--http)} .dot.tcp{background:var(--tcp)} .dot.udp{background:var(--udp)}
+  .btns { display:flex; gap:10px; margin-top:18px; }
+  button { flex:1; padding:10px 14px; border-radius:8px; border:none; font-size:14px; font-weight:600; cursor:pointer; }
+  #startBtn { background: var(--accent); color:#fff; }
+  #stopBtn { background: var(--danger); color:#fff; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  .phase-badge { display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:700; }
+  .phase-idle { background:#2a3450; color:var(--muted); }
+  .phase-warmup { background:rgba(255,182,72,.15); color:var(--udp); }
+  .phase-steady { background:rgba(55,201,119,.15); color:var(--tcp); }
+  .phase-stopped { background:rgba(255,93,93,.15); color:var(--danger); }
+  .progress-row { margin-top:16px; }
+  .progress-label { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+  .progress-bar-bg { background:#0f1420; border:1px solid var(--border); border-radius:999px; height:10px; overflow:hidden; }
+  .progress-bar { height:100%; border-radius:999px; transition: width .5s ease; }
+  .progress-bar.http { background: var(--http); } .progress-bar.tcp { background: var(--tcp); } .progress-bar.udp { background: var(--udp); }
+  .stat-line { display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-top:4px; }
+  .summary { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:16px; }
+  .summary .box { background:#0f1420; border:1px solid var(--border); border-radius:10px; padding:12px; text-align:center; }
+  .summary .box .n { font-size:22px; font-weight:700; }
+  .summary .box .l { font-size:11px; color:var(--muted); margin-top:2px; }
+  .latency-wrap { grid-column: 1 / -1; display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
+  @media (max-width: 820px) { .latency-wrap { grid-template-columns: 1fr; } }
+  table.latency { width:100%; border-collapse:collapse; margin-top:10px; }
+  table.latency th, table.latency td { text-align:left; padding:6px 8px; font-size:12px; border-bottom:1px solid var(--border); }
+  table.latency th { color:var(--muted); font-weight:500; }
+  table.latency td.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .no-data { color:var(--muted); font-size:12px; padding:8px 0; }
+  .conn-banner { background:rgba(255,93,93,.15); color:var(--danger); text-align:center; font-size:13px; padding:8px; font-weight:600; }
+  .last-updated { font-size:11px; color:var(--muted); margin-left:8px; }
+  .action-status { font-size:12px; margin-top:8px; min-height:16px; }
+  .action-status.ok { color:var(--tcp); }
+  .action-status.err { color:var(--danger); }
+  button.loading { opacity:.6; cursor:wait; }
+</style>
+</head>
+<body>
+<header><h1>NAT Performance Test · Client Control Panel</h1></header>
+<div id="connBanner" class="conn-banner" style="display:none;"></div>
+<div class="wrap">
+  <div class="card">
+    <h2>Target Configuration</h2>
+    <label>Server Host</label>
+    <input type="text" id="host" value="127.0.0.1" />
+
+    <div class="row">
+      <div><label>HTTP Port</label><input type="number" id="httpPort" value="8080" /></div>
+      <div><label>TCP Port</label><input type="number" id="tcpPort" value="9090" /></div>
+    </div>
+    <label>UDP Port</label>
+    <input type="number" id="udpPort" value="9091" />
+
+    <div class="proto-block">
+      <div class="title"><span class="dot http"></span>HTTP Target Connections</div>
+      <input type="number" id="httpTarget" value="100" />
+    </div>
+    <div class="proto-block">
+      <div class="title"><span class="dot tcp"></span>TCP Target Connections</div>
+      <input type="number" id="tcpTarget" value="100" />
+    </div>
+    <div class="proto-block">
+      <div class="title"><span class="dot udp"></span>UDP Target Connections</div>
+      <input type="number" id="udpTarget" value="100" />
+    </div>
+
+    <div class="row">
+      <div><label>Warmup Duration (sec)</label><input type="number" id="warmupSeconds" value="10" /></div>
+      <div><label>Warmup Steps</label><input type="number" id="warmupSteps" value="10" /></div>
+    </div>
+
+    <div class="btns">
+      <button id="startBtn">Start Test</button>
+      <button id="stopBtn">Stop</button>
+    </div>
+    <div id="actionStatus" class="action-status"></div>
+  </div>
+
+  <div class="card">
+    <h2>Live Status <span id="lastUpdated" class="last-updated"></span></h2>
+    <span id="phaseBadge" class="phase-badge phase-idle">IDLE</span>
+    <span id="elapsed" style="color:var(--muted); font-size:12px; margin-left:8px;"></span>
+
+    <div id="progressHttp" class="progress-row">
+      <div class="progress-label"><span>HTTP</span><span id="httpText">0 / 0</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar http" id="httpBar" style="width:0%"></div></div>
+    </div>
+    <div id="progressTcp" class="progress-row">
+      <div class="progress-label"><span>TCP</span><span id="tcpText">0 / 0</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar tcp" id="tcpBar" style="width:0%"></div></div>
+    </div>
+    <div id="progressUdp" class="progress-row">
+      <div class="progress-label"><span>UDP</span><span id="udpText">0 / 0</span></div>
+      <div class="progress-bar-bg"><div class="progress-bar udp" id="udpBar" style="width:0%"></div></div>
+    </div>
+
+    <div class="summary">
+      <div class="box"><div class="n" id="totalActive">0</div><div class="l">Active Connections</div></div>
+      <div class="box"><div class="n" id="totalSucceeded">0</div><div class="l">Total Succeeded</div></div>
+      <div class="box"><div class="n" id="totalFailed">0</div><div class="l">Total Failed</div></div>
+    </div>
+  </div>
+
+  <div class="latency-wrap">
+    <div class="card">
+      <h2>Warmup Phase · Connect Latency</h2>
+      <table class="latency">
+        <thead><tr><th>Protocol</th><th class="num">Count</th><th class="num">Avg (ms)</th><th class="num">Min</th><th class="num">Max</th></tr></thead>
+        <tbody id="connectLatencyRows"></tbody>
+      </table>
+      <div id="connectLatencyEmpty" class="no-data" style="display:none;">No connect-latency samples yet</div>
+    </div>
+    <div class="card">
+      <h2>Steady Phase · RTT Latency</h2>
+      <table class="latency">
+        <thead><tr><th>Protocol</th><th class="num">Count</th><th class="num">Avg (ms)</th><th class="num">Min</th><th class="num">Max</th></tr></thead>
+        <tbody id="rttLatencyRows"></tbody>
+      </table>
+      <div id="rttLatencyEmpty" class="no-data" style="display:none;">No RTT samples yet</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function setActionStatus(msg, kind) {
+  const el = $('actionStatus');
+  el.textContent = msg;
+  el.className = 'action-status' + (kind ? ' ' + kind : '');
+}
+
+function setButtonLoading(btn, loading) {
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+$('startBtn').onclick = async () => {
+  const cfg = {
+    host: $('host').value.trim(),
+    httpPort: parseInt($('httpPort').value, 10),
+    tcpPort: parseInt($('tcpPort').value, 10),
+    udpPort: parseInt($('udpPort').value, 10),
+    httpTarget: parseInt($('httpTarget').value, 10) || 0,
+    tcpTarget: parseInt($('tcpTarget').value, 10) || 0,
+    udpTarget: parseInt($('udpTarget').value, 10) || 0,
+    warmupSeconds: parseInt($('warmupSeconds').value, 10) || 10,
+    warmupSteps: parseInt($('warmupSteps').value, 10) || 10,
+  };
+  setButtonLoading($('startBtn'), true);
+  setActionStatus('Sending start request...', '');
+  try {
+    const res = await fetch('/api/start', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(cfg) });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await res.json();
+    setActionStatus('✓ Start request accepted at ' + new Date().toLocaleTimeString(), 'ok');
+    await refreshState(); // pull fresh state immediately instead of waiting for the next poll tick
+  } catch (err) {
+    setActionStatus('✗ Failed to start: ' + err.message, 'err');
+  } finally {
+    setButtonLoading($('startBtn'), false);
+  }
+};
+
+$('stopBtn').onclick = async () => {
+  setButtonLoading($('stopBtn'), true);
+  setActionStatus('Sending stop request...', '');
+  try {
+    const res = await fetch('/api/stop', { method: 'POST' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await res.json();
+    setActionStatus('✓ Stop request accepted at ' + new Date().toLocaleTimeString(), 'ok');
+    await refreshState();
+  } catch (err) {
+    setActionStatus('✗ Failed to stop: ' + err.message, 'err');
+  } finally {
+    setButtonLoading($('stopBtn'), false);
+  }
+};
+
+function pct(active, target) {
+  if (!target) return 0;
+  return Math.min(100, Math.round((active / target) * 100));
+}
+
+function render(s) {
+  const badge = $('phaseBadge');
+  badge.textContent = s.phase.toUpperCase();
+  badge.className = 'phase-badge phase-' + s.phase;
+
+  if (s.startedAt) {
+    const sec = Math.round((Date.now() - s.startedAt) / 1000);
+    $('elapsed').textContent = 'Running for ' + sec + 's';
+  } else {
+    $('elapsed').textContent = '';
+  }
+
+  for (const type of ['http','tcp','udp']) {
+    const active = s.active[type] || 0;
+    const target = s.target[type] || 0;
+    $(type+'Text').textContent = active + ' / ' + target;
+    $(type+'Bar').style.width = pct(active, target) + '%';
+  }
+
+  const totalActive = (s.active.http||0)+(s.active.tcp||0)+(s.active.udp||0);
+  const totalSucceeded = (s.succeeded.http||0)+(s.succeeded.tcp||0)+(s.succeeded.udp||0);
+  const totalFailed = (s.failed.http||0)+(s.failed.tcp||0)+(s.failed.udp||0);
+  $('totalActive').textContent = totalActive;
+  $('totalSucceeded').textContent = totalSucceeded;
+  $('totalFailed').textContent = totalFailed;
+
+  if (s.latency) renderLatencyTables(s.latency);
+}
+
+function fmtMs(v) { return v === null || v === undefined ? '—' : v; }
+
+function renderLatencyTable(rowsEl, emptyEl, byProtocol) {
+  const rows = ['http', 'tcp', 'udp']
+    .filter((p) => byProtocol[p] && byProtocol[p].count > 0)
+    .map((p) => {
+      const d = byProtocol[p];
+      return `<tr>
+        <td>${p.toUpperCase()}</td>
+        <td class="num">${d.count}</td>
+        <td class="num">${fmtMs(d.avgMs)}</td>
+        <td class="num">${fmtMs(d.minMs)}</td>
+        <td class="num">${fmtMs(d.maxMs)}</td>
+      </tr>`;
+    });
+  if (rows.length === 0) {
+    rowsEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+  } else {
+    emptyEl.style.display = 'none';
+    rowsEl.innerHTML = rows.join('');
+  }
+}
+
+function renderLatencyTables(latency) {
+  // Connect latency is naturally a warmup-phase metric (that's when
+  // connections get established); RTT is naturally a steady-phase metric
+  // (that's when connections just sit there getting pinged).
+  renderLatencyTable($('connectLatencyRows'), $('connectLatencyEmpty'), latency.warmup.connect);
+  renderLatencyTable($('rttLatencyRows'), $('rttLatencyEmpty'), latency.steady.rtt);
+}
+
+// Polling instead of SSE: more reliable across load balancers / proxies that
+// buffer long-lived streaming responses (which was causing the panel to look
+// frozen until a manual page reload happened to catch a flush).
+let consecutiveFailures = 0;
+const MAX_FAILURES_BEFORE_BANNER = 3;
+
+async function refreshState() {
+  try {
+    const res = await fetch('/api/state', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    render(data);
+    consecutiveFailures = 0;
+    $('connBanner').style.display = 'none';
+    $('lastUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    consecutiveFailures++;
+    if (consecutiveFailures >= MAX_FAILURES_BEFORE_BANNER) {
+      $('connBanner').style.display = 'block';
+      $('connBanner').textContent = '⚠ Lost connection to client control server (' + consecutiveFailures + ' failed polls) — retrying...';
+    }
+  }
+}
+
+refreshState(); // paint real data immediately on load, don't wait for the first tick
+setInterval(refreshState, 1000);
+</script>
+</body>
+</html>

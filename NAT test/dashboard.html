@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>NAT Performance Test - Server Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #1a2233; --border: #2a3450; --text: #e6ebf5;
+    --muted: #8a96b3; --http: #4f8cff; --tcp: #37c977; --udp: #ffb648;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); }
+  header { padding: 20px 28px; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .wrap { padding: 24px 28px; max-width: 1100px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .card .value { font-size: 30px; font-weight: 700; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot.http { background: var(--http); } .dot.tcp { background: var(--tcp); } .dot.udp { background: var(--udp); }
+  .section-title { font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 28px 0 10px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .badge.http { background: rgba(79,140,255,.15); color: var(--http); }
+  .badge.tcp { background: rgba(55,201,119,.15); color: var(--tcp); }
+  .badge.udp { background: rgba(255,182,72,.15); color: var(--udp); }
+  .muted { color: var(--muted); }
+  .empty { text-align:center; padding: 40px; color: var(--muted); }
+  .status { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>NAT Performance Test · Server Dashboard</h1>
+    <div class="status" id="status">Connecting...</div>
+  </header>
+  <div class="wrap">
+    <div class="cards">
+      <div class="card"><div class="label">Total Connections</div><div class="value" id="total">0</div></div>
+      <div class="card"><div class="label"><span class="dot http"></span>HTTP</div><div class="value" id="httpCount">0</div></div>
+      <div class="card"><div class="label"><span class="dot tcp"></span>TCP</div><div class="value" id="tcpCount">0</div></div>
+      <div class="card"><div class="label"><span class="dot udp"></span>UDP</div><div class="value" id="udpCount">0</div></div>
+      <div class="card"><div class="label">Distinct Source IPs</div><div class="value" id="distinctIps">0</div></div>
+    </div>
+
+    <div class="section-title">Connections by Source IP</div>
+    <table>
+      <thead>
+        <tr><th>Source IP</th><th class="num">HTTP</th><th class="num">TCP</th><th class="num">UDP</th><th class="num">Total</th></tr>
+      </thead>
+      <tbody id="ipRows"></tbody>
+    </table>
+    <div id="ipEmptyHint" class="empty" style="display:none;">No active connections</div>
+
+    <div class="section-title">Individual Connections</div>
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Source IP</th><th>Source Port</th><th>Duration</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div id="emptyHint" class="empty" style="display:none;">No active connections</div>
+  </div>
+
+<script>
+const totalEl = document.getElementById('total');
+const httpEl = document.getElementById('httpCount');
+const tcpEl = document.getElementById('tcpCount');
+const udpEl = document.getElementById('udpCount');
+const distinctIpsEl = document.getElementById('distinctIps');
+const ipRowsEl = document.getElementById('ipRows');
+const ipEmptyHint = document.getElementById('ipEmptyHint');
+const rowsEl = document.getElementById('rows');
+const emptyHint = document.getElementById('emptyHint');
+const statusEl = document.getElementById('status');
+
+function fmtDuration(sec) {
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  const h = Math.floor(m / 60);
+  return h + 'h ' + (m % 60) + 'm';
+}
+
+function fmtCount(n) { return n > 0 ? n : '—'; }
+
+function render(data) {
+  totalEl.textContent = data.total;
+  httpEl.textContent = data.byType.http || 0;
+  tcpEl.textContent = data.byType.tcp || 0;
+  udpEl.textContent = data.byType.udp || 0;
+  distinctIpsEl.textContent = data.distinctIps || 0;
+
+  const byIp = data.byIp || [];
+  if (byIp.length === 0) {
+    ipRowsEl.innerHTML = '';
+    ipEmptyHint.style.display = 'block';
+  } else {
+    ipEmptyHint.style.display = 'none';
+    ipRowsEl.innerHTML = byIp.map(e => `
+      <tr>
+        <td>${e.ip}</td>
+        <td class="num">${fmtCount(e.http)}</td>
+        <td class="num">${fmtCount(e.tcp)}</td>
+        <td class="num">${fmtCount(e.udp)}</td>
+        <td class="num"><strong>${e.total}</strong></td>
+      </tr>
+    `).join('');
+  }
+
+  if (data.connections.length === 0) {
+    rowsEl.innerHTML = '';
+    emptyHint.style.display = 'block';
+    return;
+  }
+  emptyHint.style.display = 'none';
+  rowsEl.innerHTML = data.connections.map(c => `
+    <tr>
+      <td><span class="badge ${c.type}">${c.type.toUpperCase()}</span></td>
+      <td>${c.ip}</td>
+      <td class="muted">${c.port}</td>
+      <td>${fmtDuration(c.durationSec)}</td>
+    </tr>
+  `).join('');
+}
+
+// Polling instead of SSE: more reliable across load balancers / proxies that
+// can buffer long-lived streaming responses, which was making the dashboard
+// look frozen until a manual page reload happened to catch a flush.
+let consecutiveFailures = 0;
+const MAX_FAILURES_BEFORE_WARNING = 3;
+
+async function refreshStats() {
+  try {
+    const res = await fetch('/api/stats', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    render(data);
+    consecutiveFailures = 0;
+    statusEl.textContent = 'Live · updated ' + new Date().toLocaleTimeString();
+    statusEl.style.color = '';
+  } catch (err) {
+    consecutiveFailures++;
+    if (consecutiveFailures >= MAX_FAILURES_BEFORE_WARNING) {
+      statusEl.textContent = '⚠ Lost connection (' + consecutiveFailures + ' failed polls) — retrying...';
+      statusEl.style.color = 'var(--udp)';
+    }
+  }
+}
+
+refreshStats(); // paint real data immediately on load, don't wait for the first tick
+setInterval(refreshStats, 1000);
+</script>
+</body>
+</html>
