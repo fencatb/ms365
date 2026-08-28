@@ -1,0 +1,14 @@
+# AWS Cost Report
+
+Updated: {{ generated_at }}
+
+{% for name, result in results.items() %}
+## {{ name }}
+{% if result.rows %}
+{% for row in result.rows %}
+{% for field, value in row.items() %}{{ field }}: {{ value }}{% if not loop.last %} | {% endif %}{% endfor %}
+{% endfor %}
+{% else %}
+No data returned.
+{% endif %}
+{% endfor %}

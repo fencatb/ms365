@@ -1,0 +1,56 @@
+{
+  "grafana": {
+    "base_url": "https://grafana.example.com",
+    "token_env": "GRAFANA_S2S_TOKEN",
+    "timeout_seconds": 30
+  },
+  "teams": {
+    "webhook_url_env": "TEAMS_WEBHOOK_URL",
+    "timeout_seconds": 30,
+    "retries": 4
+  },
+  "title": "AWS Cost Report",
+  "template": "templates/aws_cost_report.md.j2",
+  "queries": [
+    {
+      "name": "daily_cost",
+      "provider": "grafana",
+      "datasource_uid": "your-datasource-uid",
+      "model": {
+        "refId": "A",
+        "format": "table",
+        "rawSql": "REPLACE_WITH_YOUR_DAILY_COST_SQL"
+      }
+    },
+    {
+      "name": "monthly_cost",
+      "provider": "grafana",
+      "datasource_uid": "your-datasource-uid",
+      "model": {
+        "refId": "B",
+        "format": "table",
+        "rawSql": "REPLACE_WITH_YOUR_MONTHLY_COST_SQL"
+      }
+    },
+    {
+      "name": "cost_by_service",
+      "provider": "grafana",
+      "datasource_uid": "your-datasource-uid",
+      "model": {
+        "refId": "C",
+        "format": "table",
+        "rawSql": "REPLACE_WITH_YOUR_COST_BY_SERVICE_SQL"
+      }
+    },
+    {
+      "name": "cost_by_account",
+      "provider": "grafana",
+      "datasource_uid": "your-datasource-uid",
+      "model": {
+        "refId": "D",
+        "format": "table",
+        "rawSql": "REPLACE_WITH_YOUR_COST_BY_ACCOUNT_SQL"
+      }
+    }
+  ]
+}
