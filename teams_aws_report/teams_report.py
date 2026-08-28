@@ -152,7 +152,7 @@ def main() -> None:
         session,
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
     )
-    results = run_queries(config["queries"], client)
+    results = run_queries(config["queries"], client, PROJECT_DIR)
     template_path = os.path.join(PROJECT_DIR, config["template"])
     report = render_template(
         template_path,

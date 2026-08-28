@@ -16,40 +16,44 @@
       "name": "daily_cost",
       "provider": "grafana",
       "datasource_uid": "your-datasource-uid",
+      "sql_file": "queries/daily_cost.sql",
       "model": {
         "refId": "A",
         "format": "table",
-        "rawSql": "REPLACE_WITH_YOUR_DAILY_COST_SQL"
+        "rawQuery": true
       }
     },
     {
       "name": "monthly_cost",
       "provider": "grafana",
       "datasource_uid": "your-datasource-uid",
+      "sql_file": "queries/monthly_cost.sql",
       "model": {
         "refId": "B",
         "format": "table",
-        "rawSql": "REPLACE_WITH_YOUR_MONTHLY_COST_SQL"
+        "rawQuery": true
       }
     },
     {
       "name": "cost_by_service",
       "provider": "grafana",
       "datasource_uid": "your-datasource-uid",
+      "sql_file": "queries/cost_by_service.sql",
       "model": {
         "refId": "C",
         "format": "table",
-        "rawSql": "REPLACE_WITH_YOUR_COST_BY_SERVICE_SQL"
+        "rawQuery": true
       }
     },
     {
       "name": "cost_by_account",
       "provider": "grafana",
       "datasource_uid": "your-datasource-uid",
+      "sql_file": "queries/cost_by_account.sql",
       "model": {
         "refId": "D",
         "format": "table",
-        "rawSql": "REPLACE_WITH_YOUR_COST_BY_ACCOUNT_SQL"
+        "rawQuery": true
       }
     }
   ]
