@@ -261,6 +261,9 @@ Rules:
 - **A query's `model` replaces the datasource's default `model` entirely**, so
   a non-SQL query never inherits `rawQuery`/`format: table` from the
   datasource defaults.
+- **`display` is optional.** Set `"display": "calendar"` on a query to render
+  its daily rows as a month calendar (days without data show `-`) instead of
+  the default `key: value` rows. The example `daily_cost` query uses it.
 - The `model` object is sent to Grafana's `/api/ds/query` endpoint. Copy the
   exact query model from the Grafana panel (inspect the network request) when
   a plugin needs datasource-specific fields.

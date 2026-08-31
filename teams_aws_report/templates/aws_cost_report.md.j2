@@ -6,7 +6,9 @@ Updated: {{ generated_at }}
 ## {{ section.title }}
 {% for name, result in section.results.items() %}
 ### {{ name }}
-{% if result.rows %}
+{% if result.display == "calendar" %}
+{{ result.rows | calendar }}
+{% elif result.rows %}
 {% for row in result.rows %}
 {% for field, value in row.items() %}{{ field }}: {{ value }}{% if not loop.last %} | {% endif %}{% endfor %}
 {% endfor %}

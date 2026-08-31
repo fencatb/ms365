@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import calendar as _calendar
 import datetime as dt
 import json
 import os
@@ -23,6 +24,7 @@ CONFIG_FILE = os.path.join(PROJECT_DIR, "config.json")
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRIES = 4
 MAX_PAYLOAD_BYTES = 28 * 1024
+CALENDAR_CELL_WIDTH = 7
 
 
 def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
@@ -74,6 +76,48 @@ def resolve_secret(config: dict[str, Any], key: str, env_key: str) -> str:
     raise RuntimeError(f"Missing secret configuration: {key} or {env_key}")
 
 
+def calendar_grid(rows: list[dict[str, Any]]) -> str:
+    """Render daily cost rows as a month calendar, blank ('-') for no data.
+
+    Each row is expected to have a ``usage_date`` like ``2026-08-01`` and a
+    ``value``. Weeks start on Monday. The target month is taken from the rows,
+    falling back to the current month when there is no data.
+    """
+    by_date: dict[str, Any] = {}
+    for row in rows:
+        usage_date = row.get("usage_date")
+        if usage_date:
+            by_date[str(usage_date)] = row.get("value")
+
+    if by_date:
+        first = min(by_date)
+        year, month = int(first[:4]), int(first[5:7])
+    else:
+        today = dt.date.today()
+        year, month = today.year, today.month
+
+    def cell(text: Any) -> str:
+        return f"{str(text):>{CALENDAR_CELL_WIDTH}}"
+
+    cal = _calendar.Calendar(firstweekday=0)
+    title = f"{_calendar.month_name[month]} {year}"
+    lines = [title.center(CALENDAR_CELL_WIDTH * 7 + 6).rstrip()]
+    lines.append(" ".join(cell(day) for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")))
+    for week in cal.monthdatescalendar(year, month):
+        day_cells, value_cells = [], []
+        for day in week:
+            if day.month != month:
+                day_cells.append(cell(""))
+                value_cells.append(cell(""))
+            else:
+                key = day.isoformat()
+                day_cells.append(cell(day.day))
+                value_cells.append(cell(by_date.get(key, "-")))
+        lines.append(" ".join(day_cells).rstrip())
+        lines.append(" ".join(value_cells).rstrip())
+    return "\n".join(lines)
+
+
 def render_template(template_path: str, context: dict[str, Any]) -> str:
     """Render a UTF-8 Jinja template from the templates directory."""
     template_dir, filename = os.path.split(template_path)
@@ -83,6 +127,7 @@ def render_template(template_path: str, context: dict[str, Any]) -> str:
         autoescape=False,
         keep_trailing_newline=True,
     )
+    environment.filters["calendar"] = calendar_grid
     return environment.get_template(filename).render(**context).strip()
 
 
@@ -105,7 +150,12 @@ def build_card(text: str, title: str) -> dict[str, Any]:
                             "weight": "Bolder",
                             "wrap": True,
                         },
-                        {"type": "TextBlock", "text": text, "wrap": True},
+                        {
+                            "type": "TextBlock",
+                            "text": text,
+                            "wrap": True,
+                            "fontType": "Monospace",
+                        },
                     ],
                 },
             }

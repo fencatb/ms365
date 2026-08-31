@@ -86,7 +86,10 @@ def run_section(
             "model": model,
             "sql_file": query_config.get("sql_file"),
         }
-        results[name] = run_grafana_query(resolved, client, project_dir)
+        result = run_grafana_query(resolved, client, project_dir)
+        # Optional layout hint for the template, for example "calendar".
+        result["display"] = query_config.get("display", "rows")
+        results[name] = result
     return {"title": section.get("title", ""), "results": results}
 
 

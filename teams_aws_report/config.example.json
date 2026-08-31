@@ -43,7 +43,8 @@
         {
           "name": "daily_cost",
           "datasource": "athena",
-          "sql_file": "queries/daily_cost.sql"
+          "sql_file": "queries/daily_cost.sql",
+          "display": "calendar"
         },
         {
           "name": "monthly_cost",
