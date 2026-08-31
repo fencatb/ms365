@@ -99,27 +99,31 @@ def run_ec2_query(
         "budget_tag", "budgetcode"
     )
     untagged_label = query_config.get("untagged_label", "none")
+    # The instance fields to display, in order, editable from config.
+    fields = query_config.get("fields") or ["name", "instance_id", "instance_type", "state"]
     ec2 = build_ec2_client(
         aws_session["access_key"],
         aws_session["secret_key"],
         aws_session.get("region"),
     )
     report = build_report(ec2, budget_tag, untagged_label)
-    rows = [
-        {
-            "budgetcode": inst["budgetcode"],
-            "name": inst["name"],
-            "instance_id": inst["instance_id"],
-            "instance_type": inst["instance_type"],
-            "state": inst["state"],
-        }
-        for group in report["by_code"]
-        for inst in group["instances"]
-    ]
+
+    filtered_by_code = []
+    rows: list[dict[str, Any]] = []
+    for group in report["by_code"]:
+        instances = [
+            {field: (inst.get(field) if inst.get(field) is not None else "-")
+             for field in fields}
+            for inst in group["instances"]
+        ]
+        filtered_by_code.append({"code": group["code"], "instances": instances})
+        rows.extend(instances)
+
     return {
         "name": query_config["name"],
         "rows": rows,
-        "by_code": report["by_code"],
+        "by_code": filtered_by_code,
+        "fields": fields,
         "stats": {
             "total": report["total"],
             "running": report["running"],

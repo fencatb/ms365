@@ -211,13 +211,18 @@ datasource) and lists instances grouped by a budget tag:
 {
         "title": "EC2 Inventory",
         "queries": [
-                { "name": "ec2_by_budgetcode", "type": "ec2", "untagged_label": "none" }
+                {
+                        "name": "ec2_by_budgetcode",
+                        "type": "ec2",
+                        "untagged_label": "none",
+                        "fields": ["name", "instance_id", "instance_type", "state"]
+                }
         ]
 }
 ```
 
-For each instance it shows
-`Name | InstanceId | InstanceType | State`, then a summary:
+For each instance it shows the configured `fields` (in order, joined by
+`|`), then a summary:
 
 ```text
 Total: 42 (30 running)
@@ -230,6 +235,11 @@ web-1 | i-0abc123 | t3.micro | running
 db-1 | i-0xyz789 | t2.nano | running
 - | i-0def456 | c5.xlarge | running
 ```
+
+The `fields` list is editable from config; you can pick a subset or reorder
+them, for example `["instance_id", "state"]`. Available fields are `name`,
+`instance_id`, `instance_type`, and `state` (a missing value shows as `-`).
+Grouping by the budget tag is unchanged.
 
 Instances **without** the budget tag are not dropped: they are grouped under
 `untagged_label` (default `none`) so you can spot and tag them. The group
