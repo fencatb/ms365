@@ -65,6 +65,7 @@ def run_section(
     datasources: list[dict[str, Any]],
     client: GrafanaClient,
     project_dir: str,
+    aws_session: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run all queries in one section and expose them keyed by query name."""
     results: dict[str, dict[str, Any]] = {}
@@ -72,23 +73,31 @@ def run_section(
         name = query_config.get("name")
         if not name:
             raise ValueError("Every query must have a name.")
-        datasource = resolve_datasource(datasources, query_config.get("datasource"))
-        # A query's own model replaces the datasource's default model, so a
-        # query can use a completely different shape than the datasource.
-        model = dict(
-            query_config["model"]
-            if "model" in query_config
-            else datasource.get("model") or {}
+        query_type = query_config.get("type", "grafana")
+        if query_type == "ec2":
+            from aws_ec2 import run_ec2_query
+
+            result = run_ec2_query(query_config, aws_session)
+        else:
+            datasource = resolve_datasource(datasources, query_config.get("datasource"))
+            # A query's own model replaces the datasource's default model, so a
+            # query can use a completely different shape than the datasource.
+            model = dict(
+                query_config["model"]
+                if "model" in query_config
+                else datasource.get("model") or {}
+            )
+            resolved = {
+                "name": name,
+                "datasource_uid": datasource["uid"],
+                "model": model,
+                "sql_file": query_config.get("sql_file"),
+            }
+            result = run_grafana_query(resolved, client, project_dir)
+        # Optional layout hint for the template, for example "calendar" or "ec2".
+        result["display"] = query_config.get(
+            "display", "ec2" if query_type == "ec2" else "rows"
         )
-        resolved = {
-            "name": name,
-            "datasource_uid": datasource["uid"],
-            "model": model,
-            "sql_file": query_config.get("sql_file"),
-        }
-        result = run_grafana_query(resolved, client, project_dir)
-        # Optional layout hint for the template, for example "calendar".
-        result["display"] = query_config.get("display", "rows")
         results[name] = result
     return {"title": section.get("title", ""), "results": results}
 
@@ -98,9 +107,10 @@ def run_sections(
     datasources: list[dict[str, Any]],
     client: GrafanaClient,
     project_dir: str,
+    aws_session: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Run every section and return them in report order."""
     return [
-        run_section(section, datasources, client, project_dir)
+        run_section(section, datasources, client, project_dir, aws_session)
         for section in sections
     ]

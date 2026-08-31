@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 from grafana_client import GrafanaClient
 from query_runner import run_sections
 
+__version__ = "0.2"
 
 PROJECT_DIR = os.path.dirname(__file__)
 CONFIG_FILE = os.path.join(PROJECT_DIR, "config.json")
@@ -73,6 +74,25 @@ def resolve_secret(config: dict[str, Any], key: str, env_key: str) -> str:
         if value:
             return value
     raise RuntimeError(f"Missing secret configuration: {key} or {env_key}")
+
+
+def build_aws_session(config: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve AWS credentials from the environment for EC2 queries.
+
+    Returns None when no ``aws`` section is configured, so the report works
+    without AWS access. The ``aws`` section maps credential env vars like
+    ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` / ``AWS_REGION``.
+    """
+    aws_config = config.get("aws")
+    if not aws_config:
+        return None
+    return {
+        "access_key": resolve_secret(aws_config, "access_key", "access_key_env"),
+        "secret_key": resolve_secret(aws_config, "secret_key", "secret_key_env"),
+        "region": aws_config.get("region")
+        or os.getenv(aws_config.get("region_env", "")),
+        "budget_tag": aws_config.get("ec2_budget_tag", "budgetcode"),
+    }
 
 
 def calendar_grid(rows: list[dict[str, Any]]) -> str:
@@ -229,6 +249,7 @@ def main() -> None:
     """Run the configured Grafana query and Teams publishing workflow."""
     config = load_config()
     debug = resolve_debug(config)
+    print(f"teams_aws_report v{__version__}", file=sys.stderr)
     session = requests.Session()
     grafana_config = config["grafana"]
     teams_config = config["teams"]
@@ -240,7 +261,10 @@ def main() -> None:
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         debug,
     )
-    sections = run_sections(config["sections"], config["datasources"], client, PROJECT_DIR)
+    aws_session = build_aws_session(config)
+    sections = run_sections(
+        config["sections"], config["datasources"], client, PROJECT_DIR, aws_session
+    )
     template_path = os.path.join(PROJECT_DIR, config["template"])
     report = render_template(
         template_path,

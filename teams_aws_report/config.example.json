@@ -10,6 +10,12 @@
     "timeout_seconds": 30,
     "retries": 4
   },
+  "aws": {
+    "access_key_env": "AWS_ACCESS_KEY_ID",
+    "secret_key_env": "AWS_SECRET_ACCESS_KEY",
+    "region_env": "AWS_REGION",
+    "ec2_budget_tag": "budgetcode"
+  },
   "title": "Daily Ops Report",
   "template": "templates/aws_cost_report.md.j2",
   "datasources": [
@@ -19,13 +25,6 @@
       "model": {
         "format": "table",
         "rawQuery": true
-      }
-    },
-    {
-      "name": "infinity",
-      "uid": "your-infinity-datasource-uid",
-      "model": {
-        "format": "table"
       }
     },
     {
@@ -55,16 +54,15 @@
           "name": "cost_by_service",
           "datasource": "athena",
           "sql_file": "queries/cost_by_service.sql"
-        },
+        }
+      ]
+    },
+    {
+      "title": "EC2 Inventory",
+      "queries": [
         {
           "name": "ec2_by_budgetcode",
-          "datasource": "infinity",
-          "model": {
-            "type": "json",
-            "url": "https://example.com/api/ec2-instances",
-            "query": "items[] | {instance: .instance_id, code: .tags.budgetcode}",
-            "format": "table"
-          }
+          "type": "ec2"
         }
       ]
     },

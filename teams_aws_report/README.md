@@ -126,9 +126,10 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point
+        teams_report.py                 Application entry point (version 0.2)
         grafana_client.py               Grafana HTTP API client
         query_runner.py                 Pluggable query execution layer
+        aws_ec2.py                      AWS EC2 inventory via boto3
         queries/*.sql                    Independent Athena SQL files
         templates/aws_cost_report.md.j2 Report template
         config.example.json             Configuration example
@@ -155,6 +156,10 @@ Set the secrets in the environment:
 ```bash
 export GRAFANA_S2S_TOKEN="your-grafana-service-account-token"
 export TEAMS_WEBHOOK_URL="your-teams-workflow-webhook-url"
+# Only needed when you use an "ec2" query section:
+export AWS_ACCESS_KEY_ID="your-aws-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
+export AWS_REGION="us-east-1"
 ```
 
 Then edit `config.json`:
@@ -172,6 +177,12 @@ Then edit `config.json`:
                 "timeout_seconds": 30,
                 "retries": 4
         },
+        "aws": {
+                "access_key_env": "AWS_ACCESS_KEY_ID",
+                "secret_key_env": "AWS_SECRET_ACCESS_KEY",
+                "region_env": "AWS_REGION",
+                "ec2_budget_tag": "budgetcode"
+        },
         "title": "Daily Ops Report",
         "template": "templates/aws_cost_report.md.j2",
         "datasources": [],
@@ -181,6 +192,40 @@ Then edit `config.json`:
 
 The Grafana service account needs permission to query the selected datasources.
 The Teams Workflow URL is treated as a secret and must not be committed.
+The AWS credentials are read from the environment variables named in the
+`aws` section and are never stored in `config.json`.
+
+## AWS EC2 inventory
+
+An EC2 section queries the AWS account directly through the SDK (no Grafana
+datasource) and lists instances that carry a budget tag, grouped by that tag:
+
+```json
+{
+        "title": "EC2 Inventory",
+        "queries": [
+                { "name": "ec2_by_budgetcode", "type": "ec2" }
+        ]
+}
+```
+
+For each instance it shows `BudgetCode | InstanceId | InstanceType | State`,
+then a summary:
+
+```text
+Total: 42 (30 running)
+alpha: 10 (8 running)
+beta: 5 (2 running)
+[alpha]
+i-0abc123 | t3.micro | running
+...
+```
+
+The `type: "ec2"` query uses the `aws` section for credentials and the
+`ec2_budget_tag` (default `budgetcode`) to filter instances. Credentials are
+resolved from the environment (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+`AWS_REGION`). If no `aws` section is present, EC2 queries fail with a clear
+error instead of silently returning empty data.
 
 ## Debugging
 

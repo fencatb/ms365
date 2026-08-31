@@ -5,6 +5,17 @@ Updated: {{ generated_at }}
 {{ name }}
 {%- if result.display == "calendar" %}
 {{ result.rows | calendar }}
+{%- elif result.display == "ec2" %}
+Total: {{ result.stats.total }} ({{ result.stats.running }} running)
+{%- for group in result.stats.by_code %}
+{{ group.code }}: {{ group.total }} ({{ group.running }} running)
+{%- endfor %}
+{%- for group in result.by_code %}
+[{{ group.code }}]
+{%- for inst in group.instances %}
+{{ inst.instance_id }} | {{ inst.instance_type }} | {{ inst.state }}
+{%- endfor %}
+{%- endfor %}
 {%- elif result.rows %}
 {%- for row in result.rows %}
 {% for field, value in row.items() %}{{ field }}: {{ value }}{% if not loop.last %} | {% endif %}{% endfor %}
