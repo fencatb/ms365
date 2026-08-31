@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Callable
+from typing import Any
 
 from grafana_client import GrafanaClient, frames_to_rows
-
-
-QueryHandler = Callable[[dict[str, Any], GrafanaClient, str], dict[str, Any]]
 
 
 def load_query_sql(query: dict[str, Any], project_dir: str) -> str:
@@ -38,7 +35,11 @@ def run_grafana_query(
 ) -> dict[str, Any]:
     """Run a Grafana query and expose both raw data and template-friendly rows."""
     model = dict(query.get("model", {}))
-    model["rawSql"] = load_query_sql(query, project_dir)
+    # SQL-backed datasources load their statement from a file into rawSql.
+    # Datasources that carry their whole query in the model (for example
+    # Prometheus with an "expr") simply omit sql_file.
+    if query.get("sql_file"):
+        model["rawSql"] = load_query_sql(query, project_dir)
     response = client.query(query["datasource_uid"], model)
     return {
         "name": query["name"],
@@ -47,43 +48,56 @@ def run_grafana_query(
     }
 
 
-QUERY_HANDLERS: dict[str, QueryHandler] = {
-    "grafana": run_grafana_query,
-}
-
-
-def merge_query_defaults(
-    defaults: dict[str, Any] | None,
-    query: dict[str, Any],
+def resolve_datasource(
+    datasources: list[dict[str, Any]], name: str | None
 ) -> dict[str, Any]:
-    """Merge shared query defaults with a per-query config (per-query wins).
-
-    Top-level keys are merged shallowly; the nested ``model`` dict is merged
-    field-by-field so a per-query model can override individual defaults.
-    """
-    merged = {**(defaults or {}), **query}
-    default_model = dict((defaults or {}).get("model") or {})
-    if query.get("model"):
-        default_model.update(query["model"])
-        merged["model"] = default_model
-    return merged
+    """Return the datasource definition with the given name."""
+    if not name:
+        raise ValueError("Every query must specify a datasource name.")
+    for datasource in datasources:
+        if datasource.get("name") == name:
+            return datasource
+    raise ValueError(f"Unknown datasource: {name}")
 
 
-def run_queries(
-    query_configs: list[dict[str, Any]],
+def run_section(
+    section: dict[str, Any],
+    datasources: list[dict[str, Any]],
     client: GrafanaClient,
     project_dir: str,
-    defaults: dict[str, Any] | None = None,
-) -> dict[str, dict[str, Any]]:
-    """Dispatch each configured query through its selected provider."""
+) -> dict[str, Any]:
+    """Run all queries in one section and expose them keyed by query name."""
     results: dict[str, dict[str, Any]] = {}
-    for query_config in query_configs:
-        query = merge_query_defaults(defaults, query_config)
-        name = query.get("name")
-        provider = query.get("provider", "grafana")
+    for query_config in section.get("queries", []):
+        name = query_config.get("name")
         if not name:
             raise ValueError("Every query must have a name.")
-        if provider not in QUERY_HANDLERS:
-            raise ValueError(f"Unsupported query provider: {provider}")
-        results[name] = QUERY_HANDLERS[provider](query, client, project_dir)
-    return results
+        datasource = resolve_datasource(datasources, query_config.get("datasource"))
+        # A query's own model replaces the datasource's default model, so a
+        # query can use a completely different shape than the datasource.
+        model = dict(
+            query_config["model"]
+            if "model" in query_config
+            else datasource.get("model") or {}
+        )
+        resolved = {
+            "name": name,
+            "datasource_uid": datasource["uid"],
+            "model": model,
+            "sql_file": query_config.get("sql_file"),
+        }
+        results[name] = run_grafana_query(resolved, client, project_dir)
+    return {"title": section.get("title", ""), "results": results}
+
+
+def run_sections(
+    sections: list[dict[str, Any]],
+    datasources: list[dict[str, Any]],
+    client: GrafanaClient,
+    project_dir: str,
+) -> list[dict[str, Any]]:
+    """Run every section and return them in report order."""
+    return [
+        run_section(section, datasources, client, project_dir)
+        for section in sections
+    ]

@@ -10,32 +10,80 @@
     "timeout_seconds": 30,
     "retries": 4
   },
-  "title": "AWS Cost Report",
+  "title": "Daily Ops Report",
   "template": "templates/aws_cost_report.md.j2",
-  "query_defaults": {
-    "provider": "grafana",
-    "datasource_uid": "your-datasource-uid",
-    "model": {
-      "format": "table",
-      "rawQuery": true
+  "datasources": [
+    {
+      "name": "athena",
+      "uid": "your-athena-datasource-uid",
+      "model": {
+        "format": "table",
+        "rawQuery": true
+      }
+    },
+    {
+      "name": "infinity",
+      "uid": "your-infinity-datasource-uid",
+      "model": {
+        "format": "table"
+      }
+    },
+    {
+      "name": "openobserve",
+      "uid": "your-openobserve-datasource-uid",
+      "model": {
+        "format": "table"
+      }
     }
-  },
-  "queries": [
+  ],
+  "sections": [
     {
-      "name": "daily_cost",
-      "sql_file": "queries/daily_cost.sql"
+      "title": "AWS Cost",
+      "queries": [
+        {
+          "name": "daily_cost",
+          "datasource": "athena",
+          "sql_file": "queries/daily_cost.sql"
+        },
+        {
+          "name": "monthly_cost",
+          "datasource": "athena",
+          "sql_file": "queries/monthly_cost.sql"
+        },
+        {
+          "name": "cost_by_service",
+          "datasource": "athena",
+          "sql_file": "queries/cost_by_service.sql"
+        },
+        {
+          "name": "cost_by_account",
+          "datasource": "athena",
+          "sql_file": "queries/cost_by_account.sql"
+        },
+        {
+          "name": "ec2_by_budgetcode",
+          "datasource": "infinity",
+          "model": {
+            "type": "json",
+            "url": "https://example.com/api/ec2-instances",
+            "query": "items[] | {instance: .instance_id, code: .tags.budgetcode}",
+            "format": "table"
+          }
+        }
+      ]
     },
     {
-      "name": "monthly_cost",
-      "sql_file": "queries/monthly_cost.sql"
-    },
-    {
-      "name": "cost_by_service",
-      "sql_file": "queries/cost_by_service.sql"
-    },
-    {
-      "name": "cost_by_account",
-      "sql_file": "queries/cost_by_account.sql"
+      "title": "Service Status",
+      "queries": [
+        {
+          "name": "http_5xx_ratio",
+          "datasource": "openobserve",
+          "model": {
+            "query": "SELECT service, COUNT(*) AS total, SUM(status_code >= 500) AS fivexx FROM logs WHERE timestamp >= now() - INTERVAL '24' HOUR GROUP BY service",
+            "format": "table"
+          }
+        }
+      ]
     }
   ]
 }

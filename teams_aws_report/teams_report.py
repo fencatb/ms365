@@ -15,7 +15,7 @@ import requests
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from grafana_client import GrafanaClient
-from query_runner import run_queries
+from query_runner import run_sections
 
 
 PROJECT_DIR = os.path.dirname(__file__)
@@ -40,7 +40,7 @@ def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
 
     if not isinstance(config, dict):
         raise RuntimeError("The configuration file must contain a JSON object.")
-    for key in ("grafana", "teams", "queries", "template"):
+    for key in ("grafana", "teams", "datasources", "sections", "template"):
         if key not in config:
             raise RuntimeError(f"Missing required configuration section: {key}")
     return config
@@ -191,15 +191,14 @@ def main() -> None:
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         debug,
     )
-    results = run_queries(
-        config["queries"], client, PROJECT_DIR, config.get("query_defaults")
-    )
+    sections = run_sections(config["sections"], config["datasources"], client, PROJECT_DIR)
     template_path = os.path.join(PROJECT_DIR, config["template"])
     report = render_template(
         template_path,
         {
             "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-            "results": results,
+            "title": config.get("title", "AWS Cost Report"),
+            "sections": sections,
         },
     )
     payload = build_card(report, config.get("title", "AWS Cost Report"))

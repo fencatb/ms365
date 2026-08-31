@@ -1,9 +1,11 @@
-# AWS Cost Report
+# {{ title }}
 
 Updated: {{ generated_at }}
 
-{% for name, result in results.items() %}
-## {{ name }}
+{% for section in sections %}
+## {{ section.title }}
+{% for name, result in section.results.items() %}
+### {{ name }}
 {% if result.rows %}
 {% for row in result.rows %}
 {% for field, value in row.items() %}{{ field }}: {{ value }}{% if not loop.last %} | {% endif %}{% endfor %}
@@ -11,4 +13,5 @@ Updated: {{ generated_at }}
 {% else %}
 No data returned.
 {% endif %}
+{% endfor %}
 {% endfor %}

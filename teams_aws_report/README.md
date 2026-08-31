@@ -172,13 +172,14 @@ Then edit `config.json`:
                 "timeout_seconds": 30,
                 "retries": 4
         },
-        "title": "AWS Cost Report",
+        "title": "Daily Ops Report",
         "template": "templates/aws_cost_report.md.j2",
-        "queries": []
+        "datasources": [],
+        "sections": []
 }
 ```
 
-The Grafana service account needs permission to query the selected datasource.
+The Grafana service account needs permission to query the selected datasources.
 The Teams Workflow URL is treated as a secret and must not be committed.
 
 ## Debugging
@@ -195,54 +196,147 @@ On any failure, the HTTP status code and the API response body are always
 printed, even when debug is disabled. Keep `debug` off in production to avoid
 logging sensitive values such as query payloads.
 
-## Grafana Queries
+## Datasources and sections
 
-Each query loads its SQL from a separate file. The example configuration
-contains four queries, each backed by one SQL file:
+The report is composed of **datasources** (defined once, referenced by name)
+and **sections** (each a titled group of queries). This keeps the datasource
+UIDs in one place and lets a query pick any datasource.
+
+### 1. Define the datasources
+
+Each entry has a `name` (used to reference it) and the Grafana `uid`. A
+datasource may also carry default `model` fields that every SQL query on it
+inherits:
+
+```json
+"datasources": [
+        {
+                "name": "athena",
+                "uid": "your-athena-datasource-uid",
+                "model": { "format": "table", "rawQuery": true }
+        },
+        {
+                "name": "openobserve",
+                "uid": "your-openobserve-datasource-uid",
+                "model": { "format": "table" }
+        }
+]
+```
+
+### 2. Group queries into sections
+
+Each section has a `title` rendered in the report, plus a `queries` array.
+Every query references a datasource **by name** and is one query → one SQL
+file (`sql_file`), or carries its whole query in `model` (no `sql_file`):
+
+```json
+"sections": [
+        {
+                "title": "AWS Cost",
+                "queries": [
+                        { "name": "daily_cost", "datasource": "athena", "sql_file": "queries/daily_cost.sql" },
+                        { "name": "ec2_by_budgetcode", "datasource": "infinity", "model": {
+                                "type": "json",
+                                "url": "https://example.com/api/ec2-instances",
+                                "query": "items[] | {instance: .instance_id, code: .tags.budgetcode}",
+                                "format": "table"
+                        } }
+                ]
+        },
+        {
+                "title": "Service Status",
+                "queries": [
+                        { "name": "http_5xx_ratio", "datasource": "openobserve", "sql_file": "queries/http_5xx_ratio.sql" }
+                ]
+        }
+]
+```
+
+Rules:
+
+- **`sql_file` is optional.** For SQL-backed datasources (Athena, PostgreSQL,
+  OpenObserve) the file is loaded and inserted into `model.rawSql`. For
+  datasources that carry their whole query in the model (for example the
+  Infinity or Prometheus plugins), omit `sql_file`.
+- **A query's `model` replaces the datasource's default `model` entirely**, so
+  a non-SQL query never inherits `rawQuery`/`format: table` from the
+  datasource defaults.
+- The `model` object is sent to Grafana's `/api/ds/query` endpoint. Copy the
+  exact query model from the Grafana panel (inspect the network request) when
+  a plugin needs datasource-specific fields.
+
+### Example queries
+
+The SQL files under `queries/` are the Athena ones used by the AWS Cost
+section:
 
 - `queries/daily_cost.sql`
 - `queries/monthly_cost.sql`
 - `queries/cost_by_service.sql`
 - `queries/cost_by_account.sql`
 
-Edit these SQL files directly to match your Athena tables, columns, and
-business rules. The project does not require SQL to be written on one line.
+Edit these files directly to match your Athena tables, columns, and business
+rules. The project does not require SQL to be written on one line.
 
-### Adding a new query
+### Tutorial: adding datasources, sections, and custom templates
 
-Shared settings live in the `query_defaults` section, so a new query only
-needs a `name` and a `sql_file`. Every entry is one query → one SQL file:
-
-```json
-"query_defaults": {
-        "provider": "grafana",
-        "datasource_uid": "your-athena-datasource-uid",
-        "model": {
-                "format": "table",
-                "rawQuery": true
-        }
-},
-"queries": [
-        { "name": "daily_cost", "sql_file": "queries/daily_cost.sql" },
-        { "name": "cost_by_service", "sql_file": "queries/cost_by_service.sql" }
-]
-```
-
-To add a fifth query, create `queries/my_new_query.sql` and add one entry:
+**1. Add a datasource** — append an entry to the `datasources` array. No code
+or template change is needed:
 
 ```json
-{ "name": "my_new_query", "sql_file": "queries/my_new_query.sql" }
+{
+        "name": "postgres",
+        "uid": "your-postgres-datasource-uid",
+        "model": { "format": "table", "rawQuery": true }
+}
 ```
 
-Per-query keys override `query_defaults`. The nested `model` dict is merged
-field-by-field, so you can, for example, set a per-query `refId` without
-repeating `format` and `rawQuery`. The `model` object is sent to Grafana's
-`/api/ds/query` endpoint, and the selected SQL file is inserted into
-`model.rawSql` at runtime.
+**2. Add a section** — append an entry to the `sections` array. The default
+template picks it up automatically and renders `## <title>` followed by each
+query:
 
-The datasource UID is read from `query_defaults` (or overridden per query).
-For Athena, use the UID of the Athena datasource configured in Grafana. All
-queries can share the same UID when they query the same datasource.
+```json
+{
+        "title": "Database Health",
+        "queries": [
+                { "name": "slow_queries", "datasource": "postgres", "sql_file": "queries/slow_queries.sql" }
+        ]
+}
+```
+
+**3. Customize the template (optional)** — if the default `key: value` layout
+is not enough, edit `templates/aws_cost_report.md.j2`. It is plain Jinja2, so
+no Python changes are required. The template receives:
+
+- `title` — the top-level report title (`config.json` → `title`)
+- `generated_at` — a timestamp string
+- `sections` — a list, each item is
+  `{ "title": "...", "results": { "<query_name>": { "rows": [...], "raw": {...} } } }`
+
+For example, render each query as a Markdown table:
+
+```jinja2
+{% for section in sections %}
+## {{ section.title }}
+{% for name, result in section.results.items() %}
+### {{ name }}
+{% if result.rows %}
+{% set headers = result.rows[0].keys() %}
+| {% for h in headers %}{{ h }} |{% endfor %}
+|{% for h in headers %}---|{% endfor %}
+{% for row in result.rows %}
+| {% for value in row.values() %}{{ value }} |{% endfor %}
+{% endfor %}
+{% else %}
+No data returned.
+{% endif %}
+{% endfor %}
+{% endfor %}
+```
+
+Because the whole report is rendered by this one template, adding a new
+section to `config.json` immediately changes the report — you only touch the
+`.j2` file when you want a different layout for its output.
 
 ### Formatting dates in SQL
 
@@ -292,19 +386,27 @@ their own `model`) without changing the report workflow.
 Query results are converted into rows and are available in the template as:
 
 ```text
-results.<query_name>.rows
-results.<query_name>.raw
+sections[].title
+sections[].results.<query_name>.rows
+sections[].results.<query_name>.raw
 ```
 
 ## Template
 
 The default template is `templates/aws_cost_report.md.j2`. It can be edited
-without changing Python code. A simple section looks like this:
+without changing Python code. It iterates the configured sections and renders
+a `## <section title>` heading followed by the queries in that section. A
+simple section looks like this:
 
 ```jinja2
-## Daily Cost
-{% for row in results.daily_cost.rows %}
+{% for section in sections %}
+## {{ section.title }}
+{% for name, result in section.results.items() %}
+### {{ name }}
+{% for row in result.rows %}
 {{ row.date }}: {{ row.cost }}
+{% endfor %}
+{% endfor %}
 {% endfor %}
 ```
 
@@ -337,11 +439,14 @@ For a five-minute schedule with cron:
 */5 * * * * cd /opt/teams_aws_report && /usr/bin/python3 teams_report.py
 ```
 
-## Extending Query Providers
+## Extending with more datasources
 
-The current provider is `grafana`. To add another source later, implement a
-handler in `query_runner.py` and register it in `QUERY_HANDLERS`. Templates
-will continue to receive the same `{ "name", "rows", "raw" }` result shape.
+Every datasource in `config.json` is queried through Grafana's `/api/ds/query`
+endpoint, so adding an Athena, Infinity, OpenObserve, Prometheus, or any other
+Grafana datasource is just a new entry in the `datasources` array plus the
+queries that reference it. A query's `model` is sent verbatim, so copy the
+datasource-specific model fields from the Grafana panel's query inspector when
+needed.
 
 ## Security
 
