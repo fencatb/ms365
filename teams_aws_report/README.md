@@ -205,28 +205,36 @@ The AWS credentials are read from the environment variables named in the
 ## AWS EC2 inventory
 
 An EC2 section queries the AWS account directly through the SDK (no Grafana
-datasource) and lists instances that carry a budget tag, grouped by that tag:
+datasource) and lists instances grouped by a budget tag:
 
 ```json
 {
         "title": "EC2 Inventory",
         "queries": [
-                { "name": "ec2_by_budgetcode", "type": "ec2" }
+                { "name": "ec2_by_budgetcode", "type": "ec2", "untagged_label": "none" }
         ]
 }
 ```
 
-For each instance it shows `BudgetCode | InstanceId | InstanceType | State`,
-then a summary:
+For each instance it shows
+`Name | InstanceId | InstanceType | State`, then a summary:
 
 ```text
 Total: 42 (30 running)
 alpha: 10 (8 running)
-beta: 5 (2 running)
+none: 3 (1 running)
 [alpha]
-i-0abc123 | t3.micro | running
+web-1 | i-0abc123 | t3.micro | running
 ...
+[none]
+db-1 | i-0xyz789 | t2.nano | running
+- | i-0def456 | c5.xlarge | running
 ```
+
+Instances **without** the budget tag are not dropped: they are grouped under
+`untagged_label` (default `none`) so you can spot and tag them. The group
+appears last in the report. Each instance also includes its `Name` tag (shown
+as `-` when the instance has no name).
 
 The `type: "ec2"` query uses the `aws` section for credentials and the
 `ec2_budget_tag` (default `budgetcode`) to filter instances. Credentials are

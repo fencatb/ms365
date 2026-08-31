@@ -13,7 +13,7 @@ Total: {{ result.stats.total }} ({{ result.stats.running }} running)
 {%- for group in result.by_code %}
 [{{ group.code }}]
 {%- for inst in group.instances %}
-{{ inst.instance_id }} | {{ inst.instance_type }} | {{ inst.state }}
+{{ inst.name or '-' }} | {{ inst.instance_id }} | {{ inst.instance_type }} | {{ inst.state }}
 {%- endfor %}
 {%- endfor %}
 {%- elif result.rows %}

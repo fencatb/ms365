@@ -60,7 +60,8 @@
         {
           "name": "ec2_by_budgetcode",
           "type": "ec2",
-          "enabled": true
+          "enabled": true,
+          "untagged_label": "none"
         }
       ]
     },
