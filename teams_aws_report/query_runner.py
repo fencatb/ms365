@@ -70,6 +70,9 @@ def run_section(
     """Run all queries in one section and expose them keyed by query name."""
     results: dict[str, dict[str, Any]] = {}
     for query_config in section.get("queries", []):
+        # "enabled": false acts like commenting the query out.
+        if query_config.get("enabled", True) is False:
+            continue
         name = query_config.get("name")
         if not name:
             raise ValueError("Every query must have a name.")
@@ -113,4 +116,6 @@ def run_sections(
     return [
         run_section(section, datasources, client, project_dir, aws_session)
         for section in sections
+        # "enabled": false acts like commenting the section out.
+        if section.get("enabled", True) is not False
     ]

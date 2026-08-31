@@ -38,6 +38,7 @@
   "sections": [
     {
       "title": "AWS Cost",
+      "enabled": true,
       "queries": [
         {
           "name": "daily_cost",
@@ -59,15 +60,18 @@
     },
     {
       "title": "EC2 Inventory",
+      "enabled": true,
       "queries": [
         {
           "name": "ec2_by_budgetcode",
-          "type": "ec2"
+          "type": "ec2",
+          "enabled": true
         }
       ]
     },
     {
       "title": "Service Status",
+      "enabled": true,
       "queries": [
         {
           "name": "http_5xx_ratio",

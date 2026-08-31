@@ -311,6 +311,9 @@ Rules:
   `DD<weekday> <value>`, for example `01Sat 1962.74`), skipping days that have
   no data, instead of the default `key: value` rows. The example `daily_cost`
   query uses it.
+- **`enabled` is optional.** Set `"enabled": false` on a query or on a whole
+  section to skip it (JSON has no comments, so this is the way to temporarily
+  turn something off without deleting the config). Defaults to `true`.
 - The `model` object is sent to Grafana's `/api/ds/query` endpoint. Copy the
   exact query model from the Grafana panel (inspect the network request) when
   a plugin needs datasource-specific fields.
