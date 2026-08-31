@@ -80,9 +80,10 @@ def calendar_grid(rows: list[dict[str, Any]]) -> str:
 
     Each row is expected to have a ``usage_date`` like ``2026-08-01`` and a
     ``value``. Days without data are skipped, and days are grouped three per
-    line as ``DD:value`` so the block stays narrow and short inside a Teams
-    card. The target month comes from the rows, falling back to the current
-    month when there is no data.
+    line as ``DD<weekday> <value>`` (for example ``01Sat 1962.74``) so the
+    block stays narrow and short while still showing which day each cost
+    belongs to. The target month comes from the rows, falling back to the
+    current month when there is no data.
     """
     by_date: dict[str, Any] = {}
     for row in rows:
@@ -100,7 +101,9 @@ def calendar_grid(rows: list[dict[str, Any]]) -> str:
     items: list[str] = []
     for key in sorted(by_date):
         if len(key) >= 10 and int(key[:4]) == year and int(key[5:7]) == month:
-            items.append(f"{int(key[8:10]):02d}:{by_date[key]}")
+            day = int(key[8:10])
+            weekday = _calendar.day_abbr[dt.date(year, month, day).weekday()]
+            items.append(f"{day:02d}{weekday} {by_date[key]}")
 
     lines = [f"{_calendar.month_name[month]} {year}"]
     if not items:

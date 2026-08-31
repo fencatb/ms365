@@ -263,8 +263,9 @@ Rules:
   datasource defaults.
 - **`display` is optional.** Set `"display": "calendar"` on a query to render
   its daily rows as a compact list (days grouped three per line as
-  `DD:value`), skipping days that have no data, instead of the default
-  `key: value` rows. The example `daily_cost` query uses it.
+  `DD<weekday> <value>`, for example `01Sat 1962.74`), skipping days that have
+  no data, instead of the default `key: value` rows. The example `daily_cost`
+  query uses it.
 - The `model` object is sent to Grafana's `/api/ds/query` endpoint. Copy the
   exact query model from the Grafana panel (inspect the network request) when
   a plugin needs datasource-specific fields.
