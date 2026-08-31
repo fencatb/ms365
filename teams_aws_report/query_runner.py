@@ -1,5 +1,7 @@
 """Load configured SQL queries, execute them, and normalize their results."""
 
+from __future__ import annotations
+
 import os
 from typing import Any, Callable
 
@@ -50,14 +52,33 @@ QUERY_HANDLERS: dict[str, QueryHandler] = {
 }
 
 
+def merge_query_defaults(
+    defaults: dict[str, Any] | None,
+    query: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge shared query defaults with a per-query config (per-query wins).
+
+    Top-level keys are merged shallowly; the nested ``model`` dict is merged
+    field-by-field so a per-query model can override individual defaults.
+    """
+    merged = {**(defaults or {}), **query}
+    default_model = dict((defaults or {}).get("model") or {})
+    if query.get("model"):
+        default_model.update(query["model"])
+        merged["model"] = default_model
+    return merged
+
+
 def run_queries(
     query_configs: list[dict[str, Any]],
     client: GrafanaClient,
     project_dir: str,
+    defaults: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Dispatch each configured query through its selected provider."""
     results: dict[str, dict[str, Any]] = {}
-    for query in query_configs:
+    for query_config in query_configs:
+        query = merge_query_defaults(defaults, query_config)
         name = query.get("name")
         provider = query.get("provider", "grafana")
         if not name:

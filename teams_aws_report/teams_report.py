@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Query Grafana, render an external report template, and post it to Teams."""
 
+from __future__ import annotations
+
 import datetime as dt
 import json
 import os
@@ -139,10 +141,19 @@ def post_webhook(
                 f"{size} bytes)",
                 file=sys.stderr,
             )
+        # The Grafana client sets "Authorization: Bearer" on the shared session.
+        # Setting it to None here strips it for Teams, whose webhook URL already
+        # carries its own SAS authentication in the query string. Sending both
+        # makes Microsoft reject the request with 401
+        # (DirectApiRequestHasMoreThanOneAuthorization).
         response = session.post(
             webhook_url,
             json=payload,
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers={
+                "Authorization": None,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
             timeout=timeout,
         )
         if 200 <= response.status_code < 300:
@@ -180,7 +191,9 @@ def main() -> None:
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         debug,
     )
-    results = run_queries(config["queries"], client, PROJECT_DIR)
+    results = run_queries(
+        config["queries"], client, PROJECT_DIR, config.get("query_defaults")
+    )
     template_path = os.path.join(PROJECT_DIR, config["template"])
     report = render_template(
         template_path,

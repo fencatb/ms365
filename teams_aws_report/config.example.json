@@ -12,50 +12,30 @@
   },
   "title": "AWS Cost Report",
   "template": "templates/aws_cost_report.md.j2",
+  "query_defaults": {
+    "provider": "grafana",
+    "datasource_uid": "your-datasource-uid",
+    "model": {
+      "format": "table",
+      "rawQuery": true
+    }
+  },
   "queries": [
     {
       "name": "daily_cost",
-      "provider": "grafana",
-      "datasource_uid": "your-datasource-uid",
-      "sql_file": "queries/daily_cost.sql",
-      "model": {
-        "refId": "A",
-        "format": "table",
-        "rawQuery": true
-      }
+      "sql_file": "queries/daily_cost.sql"
     },
     {
       "name": "monthly_cost",
-      "provider": "grafana",
-      "datasource_uid": "your-datasource-uid",
-      "sql_file": "queries/monthly_cost.sql",
-      "model": {
-        "refId": "B",
-        "format": "table",
-        "rawQuery": true
-      }
+      "sql_file": "queries/monthly_cost.sql"
     },
     {
       "name": "cost_by_service",
-      "provider": "grafana",
-      "datasource_uid": "your-datasource-uid",
-      "sql_file": "queries/cost_by_service.sql",
-      "model": {
-        "refId": "C",
-        "format": "table",
-        "rawQuery": true
-      }
+      "sql_file": "queries/cost_by_service.sql"
     },
     {
       "name": "cost_by_account",
-      "provider": "grafana",
-      "datasource_uid": "your-datasource-uid",
-      "sql_file": "queries/cost_by_account.sql",
-      "model": {
-        "refId": "D",
-        "format": "table",
-        "rawQuery": true
-      }
+      "sql_file": "queries/cost_by_account.sql"
     }
   ]
 }
