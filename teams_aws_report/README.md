@@ -161,6 +161,7 @@ Then edit `config.json`:
 
 ```json
 {
+        "debug": false,
         "grafana": {
                 "base_url": "https://grafana.example.com",
                 "token_env": "GRAFANA_S2S_TOKEN",
@@ -179,6 +180,20 @@ Then edit `config.json`:
 
 The Grafana service account needs permission to query the selected datasource.
 The Teams Workflow URL is treated as a secret and must not be committed.
+
+## Debugging
+
+Set `"debug": true` in `config.json` (or export `TEAMS_AWS_DEBUG=1`) to print
+extra diagnostics to stderr:
+
+- The exact URL and JSON payload sent to Grafana's `/api/ds/query`.
+- The raw response body returned by Grafana.
+- The webhook URL, attempt number, and payload size for each Teams request.
+- A full Python traceback when the script fails.
+
+On any failure, the HTTP status code and the API response body are always
+printed, even when debug is disabled. Keep `debug` off in production to avoid
+logging sensitive values such as query payloads.
 
 ## Grafana Queries
 

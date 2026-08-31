@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from typing import Any
 
 import requests
@@ -41,6 +42,21 @@ def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
         if key not in config:
             raise RuntimeError(f"Missing required configuration section: {key}")
     return config
+
+
+def resolve_debug(config: dict[str, Any] | None = None) -> bool:
+    """Resolve the debug flag from the environment or the config file."""
+    env_value = os.getenv("TEAMS_AWS_DEBUG", "").strip().lower()
+    if env_value in ("1", "true", "yes", "on"):
+        return True
+    if env_value in ("0", "false", "no", "off"):
+        return False
+    if config is not None:
+        return bool(config.get("debug", False))
+    try:
+        return bool(load_config().get("debug", False))
+    except RuntimeError:
+        return False
 
 
 def resolve_secret(config: dict[str, Any], key: str, env_key: str) -> str:
@@ -106,6 +122,7 @@ def post_webhook(
     session: requests.Session,
     timeout: int,
     retries: int,
+    debug: bool = False,
 ) -> None:
     """Send the payload and retry throttling or transient server failures."""
     size = payload_size(payload)
@@ -116,6 +133,12 @@ def post_webhook(
         )
 
     for attempt in range(retries + 1):
+        if debug:
+            print(
+                f"[DEBUG] Teams POST {webhook_url} (attempt {attempt + 1}/{retries + 1}, "
+                f"{size} bytes)",
+                file=sys.stderr,
+            )
         response = session.post(
             webhook_url,
             json=payload,
@@ -134,14 +157,18 @@ def post_webhook(
                     delay = None
                 time.sleep(delay if delay is not None else min(2 ** attempt, 16))
                 continue
+        error_body = response.text[:1000]
+        print(f"[ERROR] Teams webhook returned HTTP {response.status_code}", file=sys.stderr)
+        print(f"[ERROR] response body: {error_body}", file=sys.stderr)
         raise RuntimeError(
-            f"Teams webhook failed: HTTP {response.status_code}: {response.text[:1000]}"
+            f"Teams webhook failed: HTTP {response.status_code}: {error_body}"
         )
 
 
 def main() -> None:
     """Run the configured Grafana query and Teams publishing workflow."""
     config = load_config()
+    debug = resolve_debug(config)
     session = requests.Session()
     grafana_config = config["grafana"]
     teams_config = config["teams"]
@@ -151,6 +178,7 @@ def main() -> None:
         grafana_token,
         session,
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
+        debug,
     )
     results = run_queries(config["queries"], client, PROJECT_DIR)
     template_path = os.path.join(PROJECT_DIR, config["template"])
@@ -169,6 +197,7 @@ def main() -> None:
         session,
         int(teams_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
         int(teams_config.get("retries", DEFAULT_RETRIES)),
+        debug,
     )
 
 
@@ -177,4 +206,6 @@ if __name__ == "__main__":
         main()
     except (RuntimeError, ValueError, requests.RequestException) as exc:
         print(f"Error: {exc}", file=sys.stderr)
+        if resolve_debug():
+            traceback.print_exc()
         raise SystemExit(1)

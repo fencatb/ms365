@@ -1,4 +1,5 @@
 {
+  "debug": false,
   "grafana": {
     "base_url": "https://grafana.example.com",
     "token_env": "GRAFANA_S2S_TOKEN",

@@ -1,5 +1,7 @@
 """Small Grafana HTTP API client for service-to-service authentication."""
 
+import json
+import sys
 from typing import Any
 
 import requests
@@ -14,10 +16,12 @@ class GrafanaClient:
         token: str,
         session: requests.Session,
         timeout: int = 30,
+        debug: bool = False,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.session = session
         self.timeout = timeout
+        self.debug = debug
         self.session.headers.update(
             {
                 "Authorization": f"Bearer {token}",
@@ -36,20 +40,34 @@ class GrafanaClient:
         payload = {
             "queries": [
                 {
-                    "refId": query_model["refId"],
+                    **query_model,
                     "datasource": {"uid": datasource_uid},
-                    "model": query_model,
                 }
             ],
             "from": "now-24h",
             "to": "now",
         }
+        url = f"{self.base_url}/api/ds/query"
+        if self.debug:
+            print(f"[DEBUG] Grafana POST {url}", file=sys.stderr)
+            print(
+                f"[DEBUG] payload: {json.dumps(payload, ensure_ascii=False)}",
+                file=sys.stderr,
+            )
         response = self.session.post(
-            f"{self.base_url}/api/ds/query",
+            url,
             json=payload,
             timeout=self.timeout,
         )
-        response.raise_for_status()
+        if not response.ok:
+            error_body = response.text[:2000]
+            print(f"[ERROR] Grafana API returned HTTP {response.status_code}", file=sys.stderr)
+            print(f"[ERROR] response body: {error_body}", file=sys.stderr)
+            raise RuntimeError(
+                f"Grafana query failed: HTTP {response.status_code}: {error_body}"
+            )
+        if self.debug:
+            print(f"[DEBUG] Grafana response: {response.text[:2000]}", file=sys.stderr)
         return response.json()
 
 
