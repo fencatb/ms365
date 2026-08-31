@@ -151,44 +151,51 @@ Copy the example file:
 cp config.example.json config.json
 ```
 
-Set the secrets in the environment:
+The config file only holds the static structure and the `enabled` switches.
+Everything that changes per environment is read from environment variables,
+so you never have to edit `config.json` to move between environments:
 
 ```bash
+# Grafana
+export GRAFANA_BASE_URL="https://grafana.example.com:3000"   # required
 export GRAFANA_S2S_TOKEN="your-grafana-service-account-token"
+# Teams
 export TEAMS_WEBHOOK_URL="your-teams-workflow-webhook-url"
-# Only needed when you use an "ec2" query section:
+# AWS (only needed when you use an "ec2" query section)
 export AWS_ACCESS_KEY_ID="your-aws-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
 export AWS_REGION="us-east-1"
+# Optional
+export REPORT_TITLE="Daily Ops Report"          # default: Daily Ops Report
+export EC2_BUDGET_TAG="budgetcode"              # default: budgetcode
+export DATASOURCE_ATHENA_UID="your-athena-uid"  # per datasource, see below
+export DATASOURCE_OPENOBSERVE_UID="your-openobserve-uid"
 ```
 
-Then edit `config.json`:
+`config.json` then only defines the report structure and switches:
 
 ```json
 {
         "debug": false,
-        "grafana": {
-                "base_url": "https://grafana.example.com",
-                "token_env": "GRAFANA_S2S_TOKEN",
-                "timeout_seconds": 30
-        },
-        "teams": {
-                "webhook_url_env": "TEAMS_WEBHOOK_URL",
-                "timeout_seconds": 30,
-                "retries": 4
-        },
+        "grafana": { "token_env": "GRAFANA_S2S_TOKEN", "timeout_seconds": 30 },
+        "teams": { "webhook_url_env": "TEAMS_WEBHOOK_URL", "timeout_seconds": 30, "retries": 4 },
         "aws": {
                 "access_key_env": "AWS_ACCESS_KEY_ID",
                 "secret_key_env": "AWS_SECRET_ACCESS_KEY",
-                "region_env": "AWS_REGION",
-                "ec2_budget_tag": "budgetcode"
+                "region_env": "AWS_REGION"
         },
-        "title": "Daily Ops Report",
         "template": "templates/aws_cost_report.md.j2",
-        "datasources": [],
+        "datasources": [
+                { "name": "athena", "model": { "format": "table", "rawQuery": true } },
+                { "name": "openobserve", "model": { "format": "table" } }
+        ],
         "sections": []
 }
 ```
+
+Datasource UIDs come from `DATASOURCE_<NAME>_UID` env vars (the datasource
+`name` uppercased, dashes become underscores), for example
+`DATASOURCE_ATHENA_UID`. The report title comes from `REPORT_TITLE`.
 
 The Grafana service account needs permission to query the selected datasources.
 The Teams Workflow URL is treated as a secret and must not be committed.

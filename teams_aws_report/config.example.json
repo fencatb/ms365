@@ -1,7 +1,6 @@
 {
   "debug": false,
   "grafana": {
-    "base_url": "https://grafana.example.com",
     "token_env": "GRAFANA_S2S_TOKEN",
     "timeout_seconds": 30
   },
@@ -13,15 +12,12 @@
   "aws": {
     "access_key_env": "AWS_ACCESS_KEY_ID",
     "secret_key_env": "AWS_SECRET_ACCESS_KEY",
-    "region_env": "AWS_REGION",
-    "ec2_budget_tag": "budgetcode"
+    "region_env": "AWS_REGION"
   },
-  "title": "Daily Ops Report",
   "template": "templates/aws_cost_report.md.j2",
   "datasources": [
     {
       "name": "athena",
-      "uid": "your-athena-datasource-uid",
       "model": {
         "format": "table",
         "rawQuery": true
@@ -29,7 +25,6 @@
     },
     {
       "name": "openobserve",
-      "uid": "your-openobserve-datasource-uid",
       "model": {
         "format": "table"
       }

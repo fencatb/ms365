@@ -16,9 +16,10 @@ import requests
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from grafana_client import GrafanaClient
-from query_runner import run_sections
+from query_runner import resolve_optional, run_sections
 
 __version__ = "0.2"
+DEFAULT_REPORT_TITLE = "Daily Ops Report"
 
 PROJECT_DIR = os.path.dirname(__file__)
 CONFIG_FILE = os.path.join(PROJECT_DIR, "config.json")
@@ -81,7 +82,9 @@ def build_aws_session(config: dict[str, Any]) -> dict[str, Any] | None:
 
     Returns None when no ``aws`` section is configured, so the report works
     without AWS access. The ``aws`` section maps credential env vars like
-    ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` / ``AWS_REGION``.
+    ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY`` / ``AWS_REGION``. The
+    budget tag comes from ``EC2_BUDGET_TAG`` (or ``aws.ec2_budget_tag``),
+    defaulting to ``budgetcode``.
     """
     aws_config = config.get("aws")
     if not aws_config:
@@ -89,9 +92,11 @@ def build_aws_session(config: dict[str, Any]) -> dict[str, Any] | None:
     return {
         "access_key": resolve_secret(aws_config, "access_key", "access_key_env"),
         "secret_key": resolve_secret(aws_config, "secret_key", "secret_key_env"),
-        "region": aws_config.get("region")
+        "region": resolve_optional(aws_config, "region", "AWS_REGION", None)
         or os.getenv(aws_config.get("region_env", "")),
-        "budget_tag": aws_config.get("ec2_budget_tag", "budgetcode"),
+        "budget_tag": resolve_optional(
+            aws_config, "ec2_budget_tag", "EC2_BUDGET_TAG", "budgetcode"
+        ),
     }
 
 
@@ -254,8 +259,16 @@ def main() -> None:
     grafana_config = config["grafana"]
     teams_config = config["teams"]
     grafana_token = resolve_secret(grafana_config, "token", "token_env")
+    grafana_base_url = resolve_optional(
+        grafana_config, "base_url", "GRAFANA_BASE_URL", None
+    )
+    if not grafana_base_url:
+        raise RuntimeError(
+            "Missing Grafana base URL. Set the GRAFANA_BASE_URL environment "
+            "variable (or grafana.base_url in config)."
+        )
     client = GrafanaClient(
-        grafana_config["base_url"],
+        grafana_base_url,
         grafana_token,
         session,
         int(grafana_config.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS)),
@@ -265,16 +278,17 @@ def main() -> None:
     sections = run_sections(
         config["sections"], config["datasources"], client, PROJECT_DIR, aws_session
     )
+    title = resolve_optional(config, "title", "REPORT_TITLE", DEFAULT_REPORT_TITLE)
     template_path = os.path.join(PROJECT_DIR, config["template"])
     report = render_template(
         template_path,
         {
             "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-            "title": config.get("title", "AWS Cost Report"),
+            "title": title,
             "sections": sections,
         },
     )
-    payload = build_card(report, config.get("title", "AWS Cost Report"))
+    payload = build_card(report, title)
     webhook_url = resolve_secret(teams_config, "webhook_url", "webhook_url_env")
     post_webhook(
         webhook_url,

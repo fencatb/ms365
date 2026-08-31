@@ -8,6 +8,27 @@ from typing import Any
 from grafana_client import GrafanaClient, frames_to_rows
 
 
+def resolve_optional(
+    config: dict[str, Any],
+    key: str,
+    env_name: str,
+    default: Any = None,
+) -> Any:
+    """Resolve a value from the environment first, then config, then default.
+
+    Environment-specific values (Grafana URL, datasource UIDs, budget tag,
+    report title, ...) are read from env vars so the config file only needs
+    the static structure and the ``enabled`` switches.
+    """
+    env_value = os.getenv(env_name)
+    if env_value:
+        return env_value
+    config_value = config.get(key)
+    if config_value is not None:
+        return config_value
+    return default
+
+
 def load_query_sql(query: dict[str, Any], project_dir: str) -> str:
     """Read a query's SQL from the configured queries directory."""
     query_file = query.get("sql_file")
@@ -51,12 +72,27 @@ def run_grafana_query(
 def resolve_datasource(
     datasources: list[dict[str, Any]], name: str | None
 ) -> dict[str, Any]:
-    """Return the datasource definition with the given name."""
+    """Return the datasource definition with the given name.
+
+    The datasource ``uid`` is resolved from the environment variable
+    ``DATASOURCE_<NAME>_UID`` first (for example ``DATASOURCE_ATHENA_UID``),
+    falling back to the ``uid`` in the config. This keeps per-environment
+    UIDs out of the config file.
+    """
     if not name:
         raise ValueError("Every query must specify a datasource name.")
     for datasource in datasources:
         if datasource.get("name") == name:
-            return datasource
+            resolved = dict(datasource)
+            env_key = f"DATASOURCE_{name.upper().replace('-', '_')}_UID"
+            resolved["uid"] = resolve_optional(resolved, "uid", env_key, None)
+            if not resolved["uid"]:
+                raise RuntimeError(
+                    f"Datasource '{name}' has no uid. Set the {env_key} "
+                    f"environment variable or provide uid in the datasources "
+                    f"config."
+                )
+            return resolved
     raise ValueError(f"Unknown datasource: {name}")
 
 
