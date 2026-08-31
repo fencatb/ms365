@@ -140,6 +140,7 @@ def build_card(text: str, title: str) -> dict[str, Any]:
                             "type": "TextBlock",
                             "text": title,
                             "weight": "Bolder",
+                            "size": "Medium",
                             "wrap": True,
                             "spacing": "None",
                         },

@@ -57,11 +57,6 @@
           "sql_file": "queries/cost_by_service.sql"
         },
         {
-          "name": "cost_by_account",
-          "datasource": "athena",
-          "sql_file": "queries/cost_by_account.sql"
-        },
-        {
           "name": "ec2_by_budgetcode",
           "datasource": "infinity",
           "model": {

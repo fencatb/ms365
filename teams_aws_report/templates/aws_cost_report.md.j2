@@ -1,9 +1,8 @@
-# {{ title }}
 Updated: {{ generated_at }}
 {%- for section in sections %}
-## {{ section.title }}
+**{{ section.title }}**
 {%- for name, result in section.results.items() %}
-### {{ name }}
+{{ name }}
 {%- if result.display == "calendar" %}
 {{ result.rows | calendar }}
 {%- elif result.rows %}
