@@ -24,7 +24,6 @@ CONFIG_FILE = os.path.join(PROJECT_DIR, "config.json")
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRIES = 4
 MAX_PAYLOAD_BYTES = 28 * 1024
-CALENDAR_CELL_WIDTH = 7
 
 
 def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
@@ -77,11 +76,13 @@ def resolve_secret(config: dict[str, Any], key: str, env_key: str) -> str:
 
 
 def calendar_grid(rows: list[dict[str, Any]]) -> str:
-    """Render daily cost rows as a month calendar, blank ('-') for no data.
+    """Render daily cost rows as a compact list of days that have data.
 
     Each row is expected to have a ``usage_date`` like ``2026-08-01`` and a
-    ``value``. Weeks start on Monday. The target month is taken from the rows,
-    falling back to the current month when there is no data.
+    ``value``. Days without data are skipped, and days are grouped three per
+    line as ``DD:value`` so the block stays narrow and short inside a Teams
+    card. The target month comes from the rows, falling back to the current
+    month when there is no data.
     """
     by_date: dict[str, Any] = {}
     for row in rows:
@@ -96,25 +97,16 @@ def calendar_grid(rows: list[dict[str, Any]]) -> str:
         today = dt.date.today()
         year, month = today.year, today.month
 
-    def cell(text: Any) -> str:
-        return f"{str(text):>{CALENDAR_CELL_WIDTH}}"
+    items: list[str] = []
+    for key in sorted(by_date):
+        if len(key) >= 10 and int(key[:4]) == year and int(key[5:7]) == month:
+            items.append(f"{int(key[8:10]):02d}:{by_date[key]}")
 
-    cal = _calendar.Calendar(firstweekday=0)
-    title = f"{_calendar.month_name[month]} {year}"
-    lines = [title.center(CALENDAR_CELL_WIDTH * 7 + 6).rstrip()]
-    lines.append(" ".join(cell(day) for day in ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")))
-    for week in cal.monthdatescalendar(year, month):
-        day_cells, value_cells = [], []
-        for day in week:
-            if day.month != month:
-                day_cells.append(cell(""))
-                value_cells.append(cell(""))
-            else:
-                key = day.isoformat()
-                day_cells.append(cell(day.day))
-                value_cells.append(cell(by_date.get(key, "-")))
-        lines.append(" ".join(day_cells).rstrip())
-        lines.append(" ".join(value_cells).rstrip())
+    lines = [f"{_calendar.month_name[month]} {year}"]
+    if not items:
+        lines.append("No data.")
+    for start in range(0, len(items), 3):
+        lines.append("  ".join(items[start : start + 3]))
     return "\n".join(lines)
 
 
@@ -149,12 +141,15 @@ def build_card(text: str, title: str) -> dict[str, Any]:
                             "text": title,
                             "weight": "Bolder",
                             "wrap": True,
+                            "spacing": "None",
                         },
                         {
                             "type": "TextBlock",
                             "text": text,
                             "wrap": True,
                             "fontType": "Monospace",
+                            "size": "Small",
+                            "spacing": "None",
                         },
                     ],
                 },

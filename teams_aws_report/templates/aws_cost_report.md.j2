@@ -1,19 +1,17 @@
 # {{ title }}
-
 Updated: {{ generated_at }}
-
-{% for section in sections %}
+{%- for section in sections %}
 ## {{ section.title }}
-{% for name, result in section.results.items() %}
+{%- for name, result in section.results.items() %}
 ### {{ name }}
-{% if result.display == "calendar" %}
+{%- if result.display == "calendar" %}
 {{ result.rows | calendar }}
-{% elif result.rows %}
-{% for row in result.rows %}
+{%- elif result.rows %}
+{%- for row in result.rows %}
 {% for field, value in row.items() %}{{ field }}: {{ value }}{% if not loop.last %} | {% endif %}{% endfor %}
-{% endfor %}
-{% else %}
+{%- endfor %}
+{%- else %}
 No data returned.
-{% endif %}
-{% endfor %}
-{% endfor %}
+{%- endif %}
+{%- endfor %}
+{%- endfor %}
