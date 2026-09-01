@@ -62,7 +62,8 @@
           "type": "ec2",
           "enabled": true,
           "untagged_label": "none",
-          "fields": ["name", "instance_id", "instance_type", "state"]
+          "fields": ["name", "instance_id", "instance_type", "state"],
+          "exclude_tag_values": ["12356"]
         }
       ]
     },

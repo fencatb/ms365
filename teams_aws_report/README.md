@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.3)
+        teams_report.py                 Application entry point (version 0.4)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -256,6 +256,32 @@ Instances **without** the budget tag are not dropped: they are grouped under
 `untagged_label` (default `none`) so you can spot and tag them. The group
 appears last in the report. Each instance also includes its `Name` tag (shown
 as `-` when the instance has no name).
+
+### Filtering by budget tag value
+
+An EC2 query can include or exclude specific budget tag values:
+
+```json
+{
+        "name": "ec2_by_budgetcode",
+        "type": "ec2",
+        "untagged_label": "none",
+        "include_tag_values": ["alpha", "beta"],
+        "exclude_tag_values": ["12356"]
+}
+```
+
+- `include_tag_values` (optional) — fetch **only** instances whose budget tag
+  value is in the list. This runs server-side through the AWS SDK's EC2
+  `Filters` parameter (`tag:<budget_tag>`), so it also reduces the data
+  transferred. Instances without the tag are then not returned at all.
+- `exclude_tag_values` (optional) — drop instances whose budget tag value is
+  in the list (for example `["12356"]`), so that code never appears in the
+  report. The EC2 API cannot exclude tag values server-side (it only supports
+  equality filters), so this is applied to the SDK result instead.
+
+Both are optional and can be combined; exclusions are applied after
+inclusions.
 
 The `type: "ec2"` query uses the `aws` section for credentials and the
 `ec2_budget_tag` (default `budgetcode`) to filter instances. Credentials are

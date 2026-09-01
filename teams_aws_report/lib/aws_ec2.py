@@ -25,17 +25,33 @@ def build_ec2_client(access_key: str, secret_key: str, region: str | None) -> An
 
 
 def fetch_instances(
-    ec2: Any, budget_tag: str, untagged_label: str = "none"
+    ec2: Any,
+    budget_tag: str,
+    untagged_label: str = "none",
+    include_values: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return all instances, grouped key set to the budget tag value.
 
     Instances without the budget tag are not dropped; their group key is set
     to ``untagged_label`` (default "none") so they can be reported and
     tagged. Each instance also carries its ``Name`` tag.
+
+    When ``include_values`` is given, only instances whose budget tag value is
+    in that list are fetched, using the EC2 API's server-side ``Filters``
+    parameter (via the AWS SDK). Instances without the tag are then not
+    returned at all.
     """
     instances: list[dict[str, Any]] = []
+    filters: list[dict[str, Any]] = []
+    if include_values:
+        filters.append(
+            {
+                "Name": f"tag:{budget_tag}",
+                "Values": [str(value) for value in include_values],
+            }
+        )
     paginator = ec2.get_paginator("describe_instances")
-    for page in paginator.paginate():
+    for page in paginator.paginate(**({"Filters": filters} if filters else {})):
         for reservation in page.get("Reservations", []):
             for instance in reservation.get("Instances", []):
                 tags = {
@@ -55,11 +71,32 @@ def fetch_instances(
     return instances
 
 
+def filter_instances(
+    instances: list[dict[str, Any]],
+    exclude_values: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Drop instances whose budget tag value is in ``exclude_values``.
+
+    The EC2 API cannot exclude tag values server-side (it only supports
+    equality filters), so exclusions are applied here after fetching, keeping
+    the ``untagged_label`` group intact.
+    """
+    if not exclude_values:
+        return instances
+    excluded = {str(value) for value in exclude_values}
+    return [inst for inst in instances if inst["budgetcode"] not in excluded]
+
+
 def build_report(
-    ec2: Any, budget_tag: str, untagged_label: str = "none"
+    ec2: Any,
+    budget_tag: str,
+    untagged_label: str = "none",
+    include_values: list[str] | None = None,
+    exclude_values: list[str] | None = None,
 ) -> dict[str, Any]:
     """Fetch the EC2 inventory and compute per-budget-code statistics."""
-    instances = fetch_instances(ec2, budget_tag, untagged_label)
+    instances = fetch_instances(ec2, budget_tag, untagged_label, include_values)
+    instances = filter_instances(instances, exclude_values)
 
     by_code: dict[str, list[dict[str, Any]]] = {}
     for instance in instances:
@@ -99,6 +136,10 @@ def run_ec2_query(
         "budget_tag", "budgetcode"
     )
     untagged_label = query_config.get("untagged_label", "none")
+    # Server-side tag filter (AWS SDK): only fetch these budget tag values.
+    include_values = query_config.get("include_tag_values")
+    # Client-side exclusion: never show these budget tag values.
+    exclude_values = query_config.get("exclude_tag_values")
     # The instance fields to display, in order, editable from config.
     fields = query_config.get("fields") or ["name", "instance_id", "instance_type", "state"]
     ec2 = build_ec2_client(
@@ -106,7 +147,9 @@ def run_ec2_query(
         aws_session["secret_key"],
         aws_session.get("region"),
     )
-    report = build_report(ec2, budget_tag, untagged_label)
+    report = build_report(
+        ec2, budget_tag, untagged_label, include_values, exclude_values
+    )
 
     filtered_by_code = []
     rows: list[dict[str, Any]] = []
