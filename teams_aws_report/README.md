@@ -126,15 +126,26 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.2)
-        grafana_client.py               Grafana HTTP API client
-        query_runner.py                 Pluggable query execution layer
-        aws_ec2.py                      AWS EC2 inventory via boto3
+        teams_report.py                 Application entry point (version 0.3)
+        lib/                            Reusable libraries, one concern per module
+                __init__.py             Package marker
+                config.py               Config loading + environment resolution
+                template.py             Jinja rendering + display filters (calendar)
+                teams.py                Adaptive Card building + Teams webhook
+                grafana_client.py       Grafana HTTP API client
+                query_runner.py         Pluggable query execution layer
+                aws_ec2.py              AWS EC2 inventory via boto3
         queries/*.sql                    Independent Athena SQL files
         templates/aws_cost_report.md.j2 Report template
         config.example.json             Configuration example
         config.json                     Local configuration, never commit this
 ```
+
+The entry point `teams_report.py` only orchestrates the pipeline (load config →
+query Grafana/EC2 → render template → post to Teams). Everything reusable lives
+in the `lib/` package so new features can import just the unit they need, for
+example `from lib.template import render_template` or
+`from lib.teams import build_card, post_webhook`.
 
 ## Installation
 

@@ -5,28 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from grafana_client import GrafanaClient, frames_to_rows
-
-
-def resolve_optional(
-    config: dict[str, Any],
-    key: str,
-    env_name: str,
-    default: Any = None,
-) -> Any:
-    """Resolve a value from the environment first, then config, then default.
-
-    Environment-specific values (Grafana URL, datasource UIDs, budget tag,
-    report title, ...) are read from env vars so the config file only needs
-    the static structure and the ``enabled`` switches.
-    """
-    env_value = os.getenv(env_name)
-    if env_value:
-        return env_value
-    config_value = config.get(key)
-    if config_value is not None:
-        return config_value
-    return default
+from lib.config import resolve_optional
+from lib.grafana_client import GrafanaClient, frames_to_rows
 
 
 def load_query_sql(query: dict[str, Any], project_dir: str) -> str:
@@ -114,7 +94,7 @@ def run_section(
             raise ValueError("Every query must have a name.")
         query_type = query_config.get("type", "grafana")
         if query_type == "ec2":
-            from aws_ec2 import run_ec2_query
+            from lib.aws_ec2 import run_ec2_query
 
             result = run_ec2_query(query_config, aws_session)
         else:
