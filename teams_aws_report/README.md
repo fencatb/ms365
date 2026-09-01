@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.4.3)
+        teams_report.py                 Application entry point (version 0.4.4)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -172,7 +172,10 @@ python3 -m pip install -r requirements.txt
 
 ## Configuration
 
-Copy the example file:
+`config.json` is **optional**: when it is missing, the tool falls back to
+`config.example.json` as a read-only reference, so there is **no copy step**.
+Only create a `config.json` (gitignored) if you want to override the reference
+structure:
 
 ```bash
 cp config.example.json config.json
@@ -192,12 +195,23 @@ export TEAMS_WEBHOOK_URL="your-teams-workflow-webhook-url"
 export AWS_ACCESS_KEY_ID="your-aws-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
 export AWS_REGION="us-east-1"
+# Section/query switches (optional)
+export REPORT_SECTION_SERVICE_STATUS_ENABLED=0   # disable a section
+export REPORT_QUERY_DAILY_COST_ENABLED=0         # disable a single query
 # Optional
 export REPORT_TITLE="Daily Ops Report"          # default: Daily Ops Report
 export EC2_BUDGET_TAG="budgetcode"              # default: budgetcode
 export DATASOURCE_ATHENA_UID="your-athena-uid"  # per datasource, see below
 export DATASOURCE_OPENOBSERVE_UID="your-openobserve-uid"
 ```
+
+Sections and queries can be switched on/off per environment **without editing
+a file**, using `REPORT_SECTION_<TITLE>_ENABLED` and
+`REPORT_QUERY_<NAME>_ENABLED` (title/name uppercased, spaces and dashes become
+underscores). Values `1/true/yes/on` enable, `0/false/no/off` disable. For
+example, the example config ships with the "Service Status" section disabled
+because it is not implemented yet; turn it on with
+`REPORT_SECTION_SERVICE_STATUS_ENABLED=1` once its datasource is available.
 
 `config.json` then only defines the report structure and switches:
 
@@ -332,8 +346,9 @@ tools. **Each tool is one job**, so the pipeline UI shows one button per tool:
   should run on a timer.
 
 Jobs run on a runner tagged `ops`. `aws_report` installs the requirements and
-runs `python teams_report.py` after copying `config.example.json` to
-`config.json`.
+runs `python teams_report.py` (no config copy needed: the tool falls back to
+`config.example.json`, and sections/queries are switched with the
+`REPORT_SECTION_*_ENABLED` / `REPORT_QUERY_*_ENABLED` variables).
 
 Set the secrets as **CI/CD variables** with the same names the script reads:
 

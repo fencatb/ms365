@@ -13,16 +13,29 @@ from typing import Any
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "config.json")
+EXAMPLE_CONFIG_FILE = os.path.join(PROJECT_DIR, "config.example.json")
+
+_ON_VALUES = ("1", "true", "yes", "on")
+_OFF_VALUES = ("0", "false", "no", "off")
 
 
 def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
-    """Load and validate the external JSON configuration file."""
+    """Load and validate the JSON configuration.
+
+    ``config.json`` is preferred; when it is missing, ``config.example.json``
+    is used as a read-only reference so running the tool needs no copy step.
+    Sections and queries can be turned on/off per environment with
+    ``REPORT_SECTION_<NAME>_ENABLED`` / ``REPORT_QUERY_<NAME>_ENABLED``.
+    """
+    source = path
+    if not os.path.exists(source) and os.path.exists(EXAMPLE_CONFIG_FILE):
+        source = EXAMPLE_CONFIG_FILE
     try:
-        with open(path, encoding="utf-8") as config_file:
+        with open(source, encoding="utf-8") as config_file:
             config = json.load(config_file)
     except FileNotFoundError as exc:
         raise RuntimeError(
-            f"Configuration file not found: {path}. "
+            f"Configuration file not found: {source}. "
             "Copy config.example.json to config.json and fill in the values."
         ) from exc
     except json.JSONDecodeError as exc:
@@ -33,6 +46,45 @@ def load_config(path: str = CONFIG_FILE) -> dict[str, Any]:
     for key in ("grafana", "teams", "datasources", "sections", "template"):
         if key not in config:
             raise RuntimeError(f"Missing required configuration section: {key}")
+    return apply_env_switches(config)
+
+
+def _env_bool(env_name: str) -> bool | None:
+    """Return True/False for an on/off env var, or None when it is unset."""
+    value = os.getenv(env_name, "").strip().lower()
+    if value in _ON_VALUES:
+        return True
+    if value in _OFF_VALUES:
+        return False
+    return None
+
+
+def _envify(name: str) -> str:
+    """Upper-case a name and replace non-alphanumeric runs with underscores."""
+    sanitized = "".join(ch if ch.isalnum() else "_" for ch in name)
+    return sanitized.strip("_").upper()
+
+
+def apply_env_switches(config: dict[str, Any]) -> dict[str, Any]:
+    """Apply REPORT_SECTION_<NAME>_ENABLED / REPORT_QUERY_<NAME>_ENABLED.
+
+    Environment variables override the ``enabled`` switch in the config, so
+    sections and queries can be turned on/off per environment without editing
+    a file. For example ``REPORT_SECTION_SERVICE_STATUS_ENABLED=0`` disables
+    the "Service Status" section.
+    """
+    for section in config.get("sections", []):
+        section_value = _env_bool(
+            "REPORT_SECTION_" + _envify(section.get("title", "")) + "_ENABLED"
+        )
+        if section_value is not None:
+            section["enabled"] = section_value
+        for query in section.get("queries", []):
+            query_value = _env_bool(
+                "REPORT_QUERY_" + _envify(query.get("name", "")) + "_ENABLED"
+            )
+            if query_value is not None:
+                query["enabled"] = query_value
     return config
 
 

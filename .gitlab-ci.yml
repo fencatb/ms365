@@ -32,6 +32,8 @@ workflow:
 # GRAFANA_S2S_TOKEN, TEAMS_WEBHOOK_URL, AWS_ACCESS_KEY_ID,
 # AWS_SECRET_ACCESS_KEY, AWS_REGION, DATASOURCE_ATHENA_UID,
 # DATASOURCE_OPENOBSERVE_UID, REPORT_TITLE, TEAMS_AWS_DEBUG.
+# Section/query switches: REPORT_SECTION_<TITLE>_ENABLED and
+# REPORT_QUERY_<NAME>_ENABLED (e.g. REPORT_SECTION_SERVICE_STATUS_ENABLED=0).
 aws_report:
   extends: .ops_tool
   rules:
@@ -40,7 +42,6 @@ aws_report:
       when: manual                                     # button on main
   script:
     - pip install --no-cache-dir -r teams_aws_report/requirements.txt
-    - cp teams_aws_report/config.example.json teams_aws_report/config.json
     - cd teams_aws_report && python teams_report.py
 
 # Future tools: add one job per tool, for example

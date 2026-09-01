@@ -72,7 +72,7 @@
     },
     {
       "title": "Service Status",
-      "enabled": true,
+      "enabled": false,
       "queries": [
         {
           "name": "http_5xx_ratio",
