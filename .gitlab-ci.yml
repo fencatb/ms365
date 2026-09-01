@@ -1,36 +1,54 @@
-# GitLab CI pipeline for teams_aws_report
+# GitLab CI pipeline for the ops-tools repository.
 #
-# Runs the daily report on a schedule (GitLab CI/CD -> Schedules) and can be
-# triggered manually on main (Play button or the pipeline API).
+# Each tool is one job (one button in the pipeline UI). Tools that should run
+# on a schedule add the schedule rule; manual-only tools omit it.
 #
-# The job runs on a runner that has the `ops` tag (see `tags` below).
+# To add a new tool: copy the `aws_report` job, rename it, point its `script`
+# at the tool, and keep/remove the schedule rule as needed.
 #
-# Secrets/environment must be set in GitLab CI/CD -> Variables. The script
-# reads these names directly, so no config file editing is needed:
-#   GRAFANA_BASE_URL          (required)
-#   GRAFANA_S2S_TOKEN
-#   TEAMS_WEBHOOK_URL
-#   AWS_ACCESS_KEY_ID
-#   AWS_SECRET_ACCESS_KEY
-#   AWS_REGION
-#   DATASOURCE_ATHENA_UID
-#   DATASOURCE_OPENOBSERVE_UID
-#   REPORT_TITLE              (optional, default: Daily Ops Report)
-#   TEAMS_AWS_DEBUG           (optional, set to 1 for verbose stderr output)
+# Jobs run on a runner that has the `ops` tag.
+#
+# Secrets are set in GitLab CI/CD -> Variables and must match the names each
+# tool reads.
 
 stages:
-  - report
+  - tools
 
-report:
-  stage: report
-  image: python:3.11-slim
-  tags:
-    - ops
+# Only create pipelines on schedules and on pushes to main.
+workflow:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
-      when: manual
+
+# Shared base for tools that run on the ops runner.
+.ops_tool:
+  stage: tools
+  image: python:3.11-slim
+  tags:
+    - ops
+
+# AWS cost report: runs on schedule and has a manual button on main.
+# Variables used (CI/CD Variables): GRAFANA_BASE_URL (required),
+# GRAFANA_S2S_TOKEN, TEAMS_WEBHOOK_URL, AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY, AWS_REGION, DATASOURCE_ATHENA_UID,
+# DATASOURCE_OPENOBSERVE_UID, REPORT_TITLE, TEAMS_AWS_DEBUG.
+aws_report:
+  extends: .ops_tool
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'          # auto on schedule
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: manual                                     # button on main
   script:
     - pip install --no-cache-dir -r teams_aws_report/requirements.txt
     - cp teams_aws_report/config.example.json teams_aws_report/config.json
     - cd teams_aws_report && python teams_report.py
+
+# Future tools: add one job per tool, for example
+#
+# another_tool:
+#   extends: .ops_tool
+#   rules:
+#     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+#       when: manual
+#   script:
+#     - ./another_tool/run.sh

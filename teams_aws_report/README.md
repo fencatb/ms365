@@ -322,13 +322,18 @@ logging sensitive values such as query payloads.
 
 ## GitLab CI
 
-A `.gitlab-ci.yml` at the repository root runs the report. The job:
+The `.gitlab-ci.yml` at the repository root treats this repo as a set of ops
+tools. **Each tool is one job**, so the pipeline UI shows one button per tool:
 
-- Uses a runner tagged `ops` (pick the runner you want by its tag).
-- Runs automatically on **schedules** (GitLab CI/CD → Schedules) and can be
-  triggered manually on `main` (the Play button or the pipeline API).
-- Installs the requirements and runs `python teams_report.py` after copying
-  `config.example.json` to `config.json`.
+- `aws_report` — runs automatically on **schedules** and has a manual button
+  on `main`.
+- Future tools follow the same pattern: add a job that `extends: .ops_tool`,
+  point `script` at the tool, and keep the schedule rule only if the tool
+  should run on a timer.
+
+Jobs run on a runner tagged `ops`. `aws_report` installs the requirements and
+runs `python teams_report.py` after copying `config.example.json` to
+`config.json`.
 
 Set the secrets as **CI/CD variables** with the same names the script reads:
 
@@ -337,7 +342,7 @@ Set the secrets as **CI/CD variables** with the same names the script reads:
 `DATASOURCE_ATHENA_UID`, `DATASOURCE_OPENOBSERVE_UID` (optional:
 `REPORT_TITLE`, `TEAMS_AWS_DEBUG`).
 
-For example, to run every day at 09:00, create a schedule with cron
+For example, to run the report every day at 09:00, create a schedule with cron
 `0 9 * * *`.
 
 ## Datasources and sections
