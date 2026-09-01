@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.4.1)
+        teams_report.py                 Application entry point (version 0.4.2)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -157,7 +157,8 @@ The report is posted as an Adaptive Card (schema 1.4) built structurally by
   light-background box — a `Container` with `style: "Emphasis"` — so the
   features read as separate blocks.
 - Inside a box, each **query** is a bold name followed by its monospace data;
-  queries are separated by a `HorizontalRule`.
+  queries are separated by a subtle divider line (Teams Workflow does not
+  support the `HorizontalRule` element, so it is a plain text line).
 
 To tune colors, spacing, or fonts, edit `build_card` in `lib/teams.py`. To
 change what a query's data looks like, edit the Jinja template (see below).

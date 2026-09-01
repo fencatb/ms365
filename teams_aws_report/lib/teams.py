@@ -10,6 +10,9 @@ from typing import Any
 import requests
 
 MAX_PAYLOAD_BYTES = 28 * 1024
+# Teams renders a text line reliably, while the HorizontalRule element is
+# unsupported by Teams Workflow and breaks the card.
+QUERY_SEPARATOR = "-" * 30
 
 
 def build_card(
@@ -19,8 +22,12 @@ def build_card(
 
     ``layout`` comes from :func:`lib.template.render_query_blocks`. Each
     section becomes an "Emphasis" container (light background box) with its
-    title, one monospace text block per query, and a horizontal rule between
+    title, one monospace text block per query, and a subtle divider between
     queries so the report stays scannable and highlights each block.
+
+    Only Teams-supported elements are used: Teams Workflow rejects
+    ``HorizontalRule`` and schema versions above 1.2, so the divider is a
+    plain text line and the card stays at version 1.2.
     """
     body: list[dict[str, Any]] = [
         {
@@ -53,7 +60,16 @@ def build_card(
         ]
         for index, query in enumerate(section["queries"]):
             if index > 0:
-                items.append({"type": "HorizontalRule", "spacing": "Medium"})
+                items.append(
+                    {
+                        "type": "TextBlock",
+                        "text": QUERY_SEPARATOR,
+                        "isSubtle": True,
+                        "size": "Small",
+                        "horizontalAlignment": "Center",
+                        "spacing": "Medium",
+                    }
+                )
             items.append(
                 {
                     "type": "TextBlock",
@@ -93,7 +109,7 @@ def build_card(
                 "content": {
                     "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                     "type": "AdaptiveCard",
-                    "version": "1.4",
+                    "version": "1.2",
                     "body": body,
                 },
             }
@@ -158,7 +174,16 @@ def post_webhook(
                 continue
         error_body = response.text[:1000]
         print(f"[ERROR] Teams webhook returned HTTP {response.status_code}", file=sys.stderr)
-        print(f"[ERROR] response body: {error_body}", file=sys.stderr)
+        if error_body:
+            print(f"[ERROR] response body: {error_body}", file=sys.stderr)
+        else:
+            print(
+                "[ERROR] response body is empty. If the workflow shows "
+                "'An action failed', the card likely uses an element the "
+                "workflow does not support.",
+                file=sys.stderr,
+            )
         raise RuntimeError(
-            f"Teams webhook failed: HTTP {response.status_code}: {error_body}"
+            f"Teams webhook failed: HTTP {response.status_code}: "
+            f"{error_body or '(empty body)'}"
         )
