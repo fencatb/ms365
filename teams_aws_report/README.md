@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.5)
+        teams_report.py                 Application entry point (version 0.4.1)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -142,10 +142,25 @@ teams_aws_report/
 ```
 
 The entry point `teams_report.py` only orchestrates the pipeline (load config →
-query Grafana/EC2 → render template → post to Teams). Everything reusable lives
+query Grafana/EC2 → render a layout → post to Teams). Everything reusable lives
 in the `lib/` package so new features can import just the unit they need, for
-example `from lib.template import render_template` or
+example `from lib.template import render_query_blocks` or
 `from lib.teams import build_card, post_webhook`.
+
+## Card layout
+
+The report is posted as an Adaptive Card (schema 1.4) built structurally by
+`lib/teams.py`, so Teams renders a clear hierarchy:
+
+- Report title and generated timestamp at the top.
+- Each **section** (for example "AWS Cost", "EC2 Inventory") is a
+  light-background box — a `Container` with `style: "Emphasis"` — so the
+  features read as separate blocks.
+- Inside a box, each **query** is a bold name followed by its monospace data;
+  queries are separated by a `HorizontalRule`.
+
+To tune colors, spacing, or fonts, edit `build_card` in `lib/teams.py`. To
+change what a query's data looks like, edit the Jinja template (see below).
 
 ## Installation
 
@@ -420,22 +435,18 @@ query:
 }
 ```
 
-**3. Customize the template (optional)** — if the default `key: value` layout
-is not enough, edit `templates/aws_cost_report.md.j2`. It is plain Jinja2, so
-no Python changes are required. The template receives:
+**3. Customize the template (optional)** — the card is built from a layout
+produced by rendering `templates/aws_cost_report.md.j2` **once per query**, so
+this template renders a single query result and must be plain Jinja2. It
+receives one context key:
 
-- `title` — the top-level report title (`config.json` → `title`)
-- `generated_at` — a timestamp string
-- `sections` — a list, each item is
-  `{ "title": "...", "results": { "<query_name>": { "rows": [...], "raw": {...} } } }`
+- `result` — a single query result: `{ "name": "...", "display": "...", "rows": [...], "stats": {...}, "by_code": [...] }`
 
-For example, render each query as a Markdown table:
+The section titles, query names, and overall layout (light boxes, separators)
+are managed by the card builder in `lib/teams.py`; the template only decides
+how one query's data looks. For example, render the rows as a Markdown table:
 
 ```jinja2
-{% for section in sections %}
-## {{ section.title }}
-{% for name, result in section.results.items() %}
-### {{ name }}
 {% if result.rows %}
 {% set headers = result.rows[0].keys() %}
 | {% for h in headers %}{{ h }} |{% endfor %}
@@ -446,13 +457,11 @@ For example, render each query as a Markdown table:
 {% else %}
 No data returned.
 {% endif %}
-{% endfor %}
-{% endfor %}
 ```
 
-Because the whole report is rendered by this one template, adding a new
-section to `config.json` immediately changes the report — you only touch the
-`.j2` file when you want a different layout for its output.
+Because every query is rendered by the same template, adding a new section to
+`config.json` immediately changes the report — you only touch the `.j2` file
+when you want a different layout for a query's output.
 
 ### Formatting dates in SQL
 

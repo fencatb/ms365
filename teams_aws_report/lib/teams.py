@@ -12,8 +12,78 @@ import requests
 MAX_PAYLOAD_BYTES = 28 * 1024
 
 
-def build_card(text: str, title: str) -> dict[str, Any]:
-    """Build a compact Adaptive Card containing the rendered report text."""
+def build_card(
+    title: str, generated_at: str, layout: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Build a structured Adaptive Card with one light box per section.
+
+    ``layout`` comes from :func:`lib.template.render_query_blocks`. Each
+    section becomes an "Emphasis" container (light background box) with its
+    title, one monospace text block per query, and a horizontal rule between
+    queries so the report stays scannable and highlights each block.
+    """
+    body: list[dict[str, Any]] = [
+        {
+            "type": "TextBlock",
+            "text": title,
+            "weight": "Bolder",
+            "size": "Medium",
+            "wrap": True,
+        },
+        {
+            "type": "TextBlock",
+            "text": generated_at,
+            "isSubtle": True,
+            "size": "Small",
+            "wrap": True,
+            "spacing": "Small",
+        },
+    ]
+
+    for section in layout:
+        items: list[dict[str, Any]] = [
+            {
+                "type": "TextBlock",
+                "text": section["title"],
+                "weight": "Bolder",
+                "size": "Medium",
+                "color": "Accent",
+                "wrap": True,
+            }
+        ]
+        for index, query in enumerate(section["queries"]):
+            if index > 0:
+                items.append({"type": "HorizontalRule", "spacing": "Medium"})
+            items.append(
+                {
+                    "type": "TextBlock",
+                    "text": query["name"],
+                    "weight": "Bolder",
+                    "size": "Small",
+                    "wrap": True,
+                    "spacing": "Small",
+                }
+            )
+            items.append(
+                {
+                    "type": "TextBlock",
+                    "text": query["text"],
+                    "fontType": "Monospace",
+                    "size": "Small",
+                    "wrap": True,
+                    "spacing": "Small",
+                }
+            )
+        body.append(
+            {
+                "type": "Container",
+                "style": "Emphasis",
+                "bleed": True,
+                "spacing": "Medium",
+                "items": items,
+            }
+        )
+
     return {
         "type": "message",
         "attachments": [
@@ -23,25 +93,8 @@ def build_card(text: str, title: str) -> dict[str, Any]:
                 "content": {
                     "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
                     "type": "AdaptiveCard",
-                    "version": "1.2",
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": title,
-                            "weight": "Bolder",
-                            "size": "Medium",
-                            "wrap": True,
-                            "spacing": "None",
-                        },
-                        {
-                            "type": "TextBlock",
-                            "text": text,
-                            "wrap": True,
-                            "fontType": "Monospace",
-                            "size": "Small",
-                            "spacing": "None",
-                        },
-                    ],
+                    "version": "1.4",
+                    "body": body,
                 },
             }
         ],

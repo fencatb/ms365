@@ -53,8 +53,17 @@ def calendar_grid(rows: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def render_template(template_path: str, context: dict[str, Any]) -> str:
-    """Render a UTF-8 Jinja template from the templates directory."""
+def render_query_blocks(
+    template_path: str, sections: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Render every query in every section to its own markdown block.
+
+    The template renders one query result at a time (context key ``result``).
+    The returned layout feeds the Adaptive Card builder, so each query gets its
+    own text block and a separator inside its section's container:
+
+    ``[{"title": str, "queries": [{"name": str, "text": str}, ...]}, ...]``
+    """
     template_dir, filename = os.path.split(template_path)
     environment = Environment(
         loader=FileSystemLoader(template_dir or "."),
@@ -63,4 +72,13 @@ def render_template(template_path: str, context: dict[str, Any]) -> str:
         keep_trailing_newline=True,
     )
     environment.filters["calendar"] = calendar_grid
-    return environment.get_template(filename).render(**context).strip()
+    template = environment.get_template(filename)
+
+    layout: list[dict[str, Any]] = []
+    for section in sections:
+        queries = [
+            {"name": name, "text": template.render(result=result).strip()}
+            for name, result in section["results"].items()
+        ]
+        layout.append({"title": section["title"], "queries": queries})
+    return layout

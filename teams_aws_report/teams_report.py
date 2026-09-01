@@ -31,10 +31,10 @@ from lib.config import (
 )
 from lib.grafana_client import GrafanaClient
 from lib.query_runner import run_sections
-from lib.template import render_template
+from lib.template import render_query_blocks
 from lib.teams import build_card, post_webhook
 
-__version__ = "0.5"
+__version__ = "0.4.1"
 DEFAULT_REPORT_TITLE = "Daily Ops Report"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRIES = 4
@@ -70,15 +70,9 @@ def main() -> None:
     )
     title = resolve_optional(config, "title", "REPORT_TITLE", DEFAULT_REPORT_TITLE)
     template_path = os.path.join(PROJECT_DIR, config["template"])
-    report = render_template(
-        template_path,
-        {
-            "generated_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-            "title": title,
-            "sections": sections,
-        },
-    )
-    payload = build_card(report, title)
+    layout = render_query_blocks(template_path, sections)
+    generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+    payload = build_card(title, generated_at, layout)
     webhook_url = resolve_secret(teams_config, "webhook_url", "webhook_url_env")
     post_webhook(
         webhook_url,
