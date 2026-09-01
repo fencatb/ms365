@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.4.4)
+        teams_report.py                 Application entry point (version 0.4.5)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -328,6 +328,8 @@ extra diagnostics to stderr:
 - The exact URL and JSON payload sent to Grafana's `/api/ds/query`.
 - The raw response body returned by Grafana.
 - The webhook URL, attempt number, and payload size for each Teams request.
+- Whether the expected environment variables are set (values are never
+  printed, only presence and length).
 - A full Python traceback when the script fails.
 
 On any failure, the HTTP status code and the API response body are always

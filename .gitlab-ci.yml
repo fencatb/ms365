@@ -42,6 +42,8 @@ aws_report:
       when: manual                                     # button on main
   script:
     - pip install --no-cache-dir -r teams_aws_report/requirements.txt
+    # Debug: print whether each env var is set (values are never printed).
+    - bash ci/check_env.sh GRAFANA_BASE_URL GRAFANA_S2S_TOKEN TEAMS_WEBHOOK_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION DATASOURCE_ATHENA_UID DATASOURCE_OPENOBSERVE_UID REPORT_TITLE REPORT_SECTION_SERVICE_STATUS_ENABLED
     - cd teams_aws_report && python teams_report.py
 
 # Future tools: add one job per tool, for example

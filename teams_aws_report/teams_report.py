@@ -34,10 +34,25 @@ from lib.query_runner import run_sections
 from lib.template import render_query_blocks
 from lib.teams import build_card, post_webhook
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 DEFAULT_REPORT_TITLE = "Daily Ops Report"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRIES = 4
+
+
+def _log_env_presence() -> None:
+    """Print whether the expected env vars are set (values never printed)."""
+    for name in (
+        "GRAFANA_BASE_URL",
+        "GRAFANA_S2S_TOKEN",
+        "TEAMS_WEBHOOK_URL",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_REGION",
+    ):
+        value = os.getenv(name, "")
+        state = f"SET (length {len(value)})" if value else "UNSET/EMPTY"
+        print(f"[debug] env {name}: {state}", file=sys.stderr)
 
 
 def main() -> None:
@@ -45,6 +60,8 @@ def main() -> None:
     config = load_config()
     debug = resolve_debug(config)
     print(f"teams_aws_report v{__version__}", file=sys.stderr)
+    if debug:
+        _log_env_presence()
     session = requests.Session()
     grafana_config = config["grafana"]
     teams_config = config["teams"]
