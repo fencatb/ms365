@@ -34,7 +34,7 @@ from lib.query_runner import run_sections
 from lib.template import render_template
 from lib.teams import build_card, post_webhook
 
-__version__ = "0.4"
+__version__ = "0.5"
 DEFAULT_REPORT_TITLE = "Daily Ops Report"
 DEFAULT_TIMEOUT_SECONDS = 30
 DEFAULT_RETRIES = 4

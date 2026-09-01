@@ -78,13 +78,28 @@ def filter_instances(
     """Drop instances whose budget tag value is in ``exclude_values``.
 
     The EC2 API cannot exclude tag values server-side (it only supports
-    equality filters), so exclusions are applied here after fetching, keeping
-    the ``untagged_label`` group intact.
+    equality filters), so exclusions are applied here after fetching. This
+    only affects the detailed per-tag listings; statistics always cover every
+    fetched instance.
     """
     if not exclude_values:
         return instances
     excluded = {str(value) for value in exclude_values}
     return [inst for inst in instances if inst["budgetcode"] not in excluded]
+
+
+def _group_by_code(
+    instances: list[dict[str, Any]], untagged_label: str
+) -> list[dict[str, Any]]:
+    """Group instances by budget code; the untagged group sorts last."""
+    by_code: dict[str, list[dict[str, Any]]] = {}
+    for instance in instances:
+        by_code.setdefault(instance["budgetcode"], []).append(instance)
+    return sorted(
+        ({"code": code, "instances": insts} for code, insts in by_code.items()),
+        # The untagged group is sorted last so it stays easy to spot.
+        key=lambda group: (group["code"] == untagged_label, group["code"]),
+    )
 
 
 def build_report(
@@ -94,31 +109,33 @@ def build_report(
     include_values: list[str] | None = None,
     exclude_values: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Fetch the EC2 inventory and compute per-budget-code statistics."""
+    """Fetch the EC2 inventory and compute per-budget-code statistics.
+
+    The top-level statistics (``total``/``running``/``stats_by_code``) always
+    cover every fetched instance, so every budget tag is shown. Only the
+    detailed per-tag listings (``by_code``) drop instances whose budget tag
+    value is in ``exclude_values``.
+    """
     instances = fetch_instances(ec2, budget_tag, untagged_label, include_values)
-    instances = filter_instances(instances, exclude_values)
+    detail_instances = filter_instances(instances, exclude_values)
 
-    by_code: dict[str, list[dict[str, Any]]] = {}
-    for instance in instances:
-        by_code.setdefault(instance["budgetcode"], []).append(instance)
+    all_groups = _group_by_code(instances, untagged_label)
+    detail_groups = _group_by_code(detail_instances, untagged_label)
 
-    grouped = sorted(
-        ({"code": code, "instances": insts} for code, insts in by_code.items()),
-        # The untagged group is sorted last so it stays easy to spot.
-        key=lambda group: (group["code"] == untagged_label, group["code"]),
-    )
     stats_by_code = [
         {
             "code": group["code"],
             "total": len(group["instances"]),
-            "running": sum(1 for inst in group["instances"] if inst["state"] == "running"),
+            "running": sum(
+                1 for inst in group["instances"] if inst["state"] == "running"
+            ),
         }
-        for group in grouped
+        for group in all_groups
     ]
     return {
         "total": len(instances),
         "running": sum(1 for inst in instances if inst["state"] == "running"),
-        "by_code": grouped,
+        "by_code": detail_groups,
         "stats_by_code": stats_by_code,
     }
 

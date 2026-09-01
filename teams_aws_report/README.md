@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.4)
+        teams_report.py                 Application entry point (version 0.5)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -275,10 +275,11 @@ An EC2 query can include or exclude specific budget tag values:
   value is in the list. This runs server-side through the AWS SDK's EC2
   `Filters` parameter (`tag:<budget_tag>`), so it also reduces the data
   transferred. Instances without the tag are then not returned at all.
-- `exclude_tag_values` (optional) — drop instances whose budget tag value is
-  in the list (for example `["12356"]`), so that code never appears in the
-  report. The EC2 API cannot exclude tag values server-side (it only supports
-  equality filters), so this is applied to the SDK result instead.
+- `exclude_tag_values` (optional) — hide the detailed per-tag listing for the
+  given budget tag values (for example `["12356"]`). The top summary still
+  covers every tag; only the `[code]` blocks below are omitted. The EC2 API
+  cannot exclude tag values server-side (it only supports equality filters),
+  so this is applied to the SDK result instead.
 
 Both are optional and can be combined; exclusions are applied after
 inclusions.
