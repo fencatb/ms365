@@ -44,10 +44,13 @@
         {
           "name": "monthly_cost",
           "datasource": "athena",
-          "sql_file": "queries/monthly_cost.sql"
+          "sql_files": [
+            "queries/monthly_cost_prev.sql",
+            "queries/monthly_cost.sql"
+          ]
         },
         {
-          "name": "cost_by_service",
+          "name": "current_month_service_cost",
           "datasource": "athena",
           "sql_file": "queries/cost_by_service.sql"
         }

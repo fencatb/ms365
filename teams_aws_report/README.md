@@ -126,7 +126,7 @@ the Teams request below the 28 KB limit.
 
 ```text
 teams_aws_report/
-        teams_report.py                 Application entry point (version 0.4.2)
+        teams_report.py                 Application entry point (version 0.4.3)
         lib/                            Reusable libraries, one concern per module
                 __init__.py             Package marker
                 config.py               Config loading + environment resolution
@@ -382,6 +382,11 @@ Rules:
   OpenObserve) the file is loaded and inserted into `model.rawSql`. For
   datasources that carry their whole query in the model (for example the
   Infinity or Prometheus plugins), omit `sql_file`.
+- **`sql_files` (plural) merges several SQL files into one query.** Each file
+  is run against the same datasource and their rows are concatenated, so the
+  report shows them as a single query with several rows. Useful for comparing
+  billing periods: the example `monthly_cost` uses one file for the previous
+  month and one for the current month.
 - **A query's `model` replaces the datasource's default `model` entirely**, so
   a non-SQL query never inherits `rawQuery`/`format: table` from the
   datasource defaults.
@@ -402,9 +407,11 @@ Rules:
 The SQL files under `queries/` are the Athena ones used by the AWS Cost
 section:
 
-- `queries/daily_cost.sql`
-- `queries/monthly_cost.sql`
-- `queries/cost_by_service.sql`
+- `queries/daily_cost.sql` — the previous complete billing month, rendered as
+  a calendar (the month is labelled by the calendar itself, e.g. "August 2026")
+- `queries/monthly_cost_prev.sql` + `queries/monthly_cost.sql` — previous and
+  current month, merged by `sql_files` into one query for comparison
+- `queries/cost_by_service.sql` — current month, zero-cost services hidden
 - `queries/cost_by_account.sql`
 
 Edit these files directly to match your Athena tables, columns, and business

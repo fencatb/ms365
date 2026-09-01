@@ -1,9 +1,8 @@
--- Previous billing period, because AWS billing data lags at least a day so the
--- current month is empty on the 1st. The calendar filter labels the month, so
--- after a month boundary it shows e.g. "August 2026".
+-- Previous billing period, so monthly_cost can compare it against the current
+-- month even on the 1st when the current period has no rows yet.
 -- billing_period format is 'YYYY-MM' (e.g. '2026-08').
 SELECT
-    DATE_FORMAT(date(line_item_usage_start_date), '%Y-%m-%d') AS usage_date,
+    DATE_FORMAT(date_trunc('month', line_item_usage_start_date), '%Y-%m') AS usage_month,
     ROUND(SUM(line_item_unblended_cost), 2) AS value
 FROM athenadataexports_aws_finops_cur.data
 WHERE

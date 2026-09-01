@@ -9,9 +9,11 @@ from lib.config import resolve_optional
 from lib.grafana_client import GrafanaClient, frames_to_rows
 
 
-def load_query_sql(query: dict[str, Any], project_dir: str) -> str:
+def load_query_sql(
+    query: dict[str, Any], project_dir: str, sql_file: str | None = None
+) -> str:
     """Read a query's SQL from the configured queries directory."""
-    query_file = query.get("sql_file")
+    query_file = sql_file or query.get("sql_file")
     if not query_file:
         raise ValueError(f"Query {query.get('name', '<unnamed>')} has no sql_file.")
 
@@ -34,18 +36,36 @@ def load_query_sql(query: dict[str, Any], project_dir: str) -> str:
 def run_grafana_query(
     query: dict[str, Any], client: GrafanaClient, project_dir: str
 ) -> dict[str, Any]:
-    """Run a Grafana query and expose both raw data and template-friendly rows."""
+    """Run a Grafana query and expose both raw data and template-friendly rows.
+
+    A SQL-backed query may use ``sql_file`` (single) or ``sql_files`` (a list,
+    for example one file per billing period); when several files are given,
+    their rows are concatenated into one result so the report renders them as
+    a single query with several rows.
+    """
     model = dict(query.get("model", {}))
-    # SQL-backed datasources load their statement from a file into rawSql.
+    # SQL-backed datasources load their statements from files into rawSql.
     # Datasources that carry their whole query in the model (for example
     # Prometheus with an "expr") simply omit sql_file.
-    if query.get("sql_file"):
-        model["rawSql"] = load_query_sql(query, project_dir)
-    response = client.query(query["datasource_uid"], model)
+    sql_files = query.get("sql_files") or (
+        [query["sql_file"]] if query.get("sql_file") else []
+    )
+    # Model-only datasources (for example Prometheus "expr" or an inline model
+    # query) carry no SQL file; run the model once as-is.
+    if not sql_files:
+        sql_files = [None]
+    rows: list[dict[str, Any]] = []
+    last_response: dict[str, Any] | None = None
+    for sql_file in sql_files:
+        if sql_file:
+            model["rawSql"] = load_query_sql(query, project_dir, sql_file)
+        response = client.query(query["datasource_uid"], model)
+        rows.extend(frames_to_rows(response))
+        last_response = response
     return {
         "name": query["name"],
-        "rows": frames_to_rows(response),
-        "raw": response,
+        "rows": rows,
+        "raw": last_response,
     }
 
 
@@ -111,6 +131,7 @@ def run_section(
                 "datasource_uid": datasource["uid"],
                 "model": model,
                 "sql_file": query_config.get("sql_file"),
+                "sql_files": query_config.get("sql_files"),
             }
             result = run_grafana_query(resolved, client, project_dir)
         # Optional layout hint for the template, for example "calendar" or "ec2".
