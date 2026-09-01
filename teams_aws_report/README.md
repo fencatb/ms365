@@ -320,6 +320,26 @@ On any failure, the HTTP status code and the API response body are always
 printed, even when debug is disabled. Keep `debug` off in production to avoid
 logging sensitive values such as query payloads.
 
+## GitLab CI
+
+A `.gitlab-ci.yml` at the repository root runs the report. The job:
+
+- Uses a runner tagged `ops` (pick the runner you want by its tag).
+- Runs automatically on **schedules** (GitLab CI/CD → Schedules) and can be
+  triggered manually on `main` (the Play button or the pipeline API).
+- Installs the requirements and runs `python teams_report.py` after copying
+  `config.example.json` to `config.json`.
+
+Set the secrets as **CI/CD variables** with the same names the script reads:
+
+`GRAFANA_BASE_URL`, `GRAFANA_S2S_TOKEN`, `TEAMS_WEBHOOK_URL`,
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`,
+`DATASOURCE_ATHENA_UID`, `DATASOURCE_OPENOBSERVE_UID` (optional:
+`REPORT_TITLE`, `TEAMS_AWS_DEBUG`).
+
+For example, to run every day at 09:00, create a schedule with cron
+`0 9 * * *`.
+
 ## Datasources and sections
 
 The report is composed of **datasources** (defined once, referenced by name)

@@ -1,0 +1,36 @@
+# GitLab CI pipeline for teams_aws_report
+#
+# Runs the daily report on a schedule (GitLab CI/CD -> Schedules) and can be
+# triggered manually on main (Play button or the pipeline API).
+#
+# The job runs on a runner that has the `ops` tag (see `tags` below).
+#
+# Secrets/environment must be set in GitLab CI/CD -> Variables. The script
+# reads these names directly, so no config file editing is needed:
+#   GRAFANA_BASE_URL          (required)
+#   GRAFANA_S2S_TOKEN
+#   TEAMS_WEBHOOK_URL
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_REGION
+#   DATASOURCE_ATHENA_UID
+#   DATASOURCE_OPENOBSERVE_UID
+#   REPORT_TITLE              (optional, default: Daily Ops Report)
+#   TEAMS_AWS_DEBUG           (optional, set to 1 for verbose stderr output)
+
+stages:
+  - report
+
+report:
+  stage: report
+  image: python:3.11-slim
+  tags:
+    - ops
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+      when: manual
+  script:
+    - pip install --no-cache-dir -r teams_aws_report/requirements.txt
+    - cp teams_aws_report/config.example.json teams_aws_report/config.json
+    - cd teams_aws_report && python teams_report.py
